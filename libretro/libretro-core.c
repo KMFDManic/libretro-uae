@@ -436,7 +436,6 @@ static void retro_set_core_options()
    static struct retro_core_option_v2_category option_cats_us[] =
    {
       {
-      {
          "system",
          "System",
          "Configure system options."
