@@ -329,18 +329,20 @@ void print_statusbar(void)
    mem_size  = (float)(currprefs.chipmem_size / 0x80000) / 2;
    mem_size += (float)(currprefs.bogomem_size / 0x40000) / 4;
    mem_size += (float)(currprefs.fastmem_size / 0x100000);
+   mem_size += (float)(currprefs.z3fastmem_size / 0x100000);
    if (TEXT_X_MEMORY > 0)
-      snprintf(MEMORY, sizeof(MEMORY), (mem_size < 1) ? "%0.1fM" : "%2.0fM", mem_size);
+      snprintf(MEMORY, sizeof(MEMORY), (mem_size < 10) ? "%3.1fM" : "%3.0fM", mem_size);
+
    switch (currprefs.cs_compatible)
    {
       case CP_A500:
-         snprintf(MODEL, sizeof(MODEL), "%s", " A500");
+         snprintf(MODEL, sizeof(MODEL), "%s", "A500");
          break;
       case CP_A500P:
          snprintf(MODEL, sizeof(MODEL), "%s", "A500+");
          break;
       case CP_A600:
-         snprintf(MODEL, sizeof(MODEL), "%s", " A600");
+         snprintf(MODEL, sizeof(MODEL), "%s", "A600");
          break;
       case CP_A1200:
          snprintf(MODEL, sizeof(MODEL), "%s", "A1200");
@@ -352,10 +354,10 @@ void print_statusbar(void)
          snprintf(MODEL, sizeof(MODEL), "%s", "A4000");
          break;
       case CP_CDTV:
-         snprintf(MODEL, sizeof(MODEL), "%s", " CDTV");
+         snprintf(MODEL, sizeof(MODEL), "%s", "CDTV");
          break;
       case CP_CD32:
-         snprintf(MODEL, sizeof(MODEL), "%s", " CD32");
+         snprintf(MODEL, sizeof(MODEL), "%s", "CD32");
          break;
    }
 
