@@ -1,10 +1,10 @@
 /*
-* UAE - The Un*x Amiga Emulator
-*
-* Drive Click Emulation Support Functions
-*
-* Copyright 2004 James Bagg, Toni Wilen
-*/
+ * UAE - The Un*x Amiga Emulator
+ *
+ * Drive Click Emulation Support Functions
+ *
+ * Copyright 2004 James Bagg, Toni Wilen
+ */
 
 #include "sysconfig.h"
 #include "sysdeps.h"
@@ -23,7 +23,7 @@
 #ifdef __LIBRETRO__
 #include "libretro-core.h"
 #include "file/file_path.h"
-extern char retro_system_data_directory[];
+extern char retro_system_directory[];
 extern bool opt_floppy_sound_empty_mute;
 #endif
 
@@ -92,7 +92,7 @@ static int loadsample (TCHAR *path, struct drvsample *ds)
 		}
 	}
 	zfile_fseek (f, 0, SEEK_END);
-	size = zfile_ftell32(f);
+	size = zfile_ftell (f);
 	buf = xmalloc (uae_u8, size);
 	zfile_fseek (f, 0, SEEK_SET);
 	zfile_fread (buf, size, 1, f);
@@ -113,13 +113,13 @@ static void processclicks (struct drvsample *ds)
 {
 	unsigned int nClick = 0;
 
-	for (int n = 0; n < CLICK_TRACKS; n++)  {
+	for (int n = 0; n < CLICK_TRACKS; n++) {
 		ds->indexes[n] = 0;
 		ds->lengths[n] = 0;
 	}
 	for(int n = 0; n < ds->len; n++) {
 		uae_s16 smp = ds->p[n];
-		if (smp > 0x6ff0 && nClick < CLICK_TRACKS)  {
+		if (smp > 0x6ff0 && nClick < CLICK_TRACKS) {
 			ds->indexes[nClick] = n - 128;
 			ds->lengths[nClick] = 2800;
 			nClick ++;
@@ -138,7 +138,7 @@ static void processclicks (struct drvsample *ds)
 				ds->indexes[n] = ds->indexes[0];
 				ds->lengths[n] = ds->lengths[0];
 			}
-		} else  {
+		} else {
 			for(int n = nClick; n < CLICK_TRACKS; n++) {
 				ds->indexes[n] = ds->indexes[nClick-1];
 				ds->lengths[n] = ds->lengths[nClick-1];
@@ -176,12 +176,12 @@ void driveclick_init (void)
 	vv = 0;
 	for (int i = 0; i < 4; i++) {
 		struct floppyslot *fs = &currprefs.floppyslots[i];
-		for (int j = 0; j < CLICK_TRACKS; j++)  {
+		for (int j = 0; j < CLICK_TRACKS; j++) {
 			drvs[i][DS_CLICK].indexes[j] = 0;
 			drvs[i][DS_CLICK].lengths[j] = 0;
 		}
 		if (fs->dfxclick) {
-			v = 0;
+		    v = 0;
 			if (fs->dfxclick > 0) {
 				switch(fs->dfxclick)
 				{
@@ -203,7 +203,9 @@ void driveclick_init (void)
 				for (int j = 0; j < CLICK_TRACKS; j++)
 					drvs[i][DS_CLICK].lengths[j] = drvs[i][DS_CLICK].len;
 #ifdef __LIBRETRO__
-				_stprintf (path2, "%s%c", retro_system_data_directory, FSDB_DIR_SEPARATOR);
+				_stprintf (path2, "%s%cuae_data%c", retro_system_directory, FSDB_DIR_SEPARATOR, FSDB_DIR_SEPARATOR);
+				if (!path_is_directory(path2))
+				   _stprintf (path2, "%s%cuae%c", retro_system_directory, FSDB_DIR_SEPARATOR, FSDB_DIR_SEPARATOR);
 #else
 				get_plugin_path (path2, sizeof path2 / sizeof (TCHAR), _T("floppysounds"));
 				_stprintf (path2, "%suae_data%c", "./", FSDB_DIR_SEPARATOR);
@@ -260,7 +262,7 @@ void driveclick_reset (void)
 	}
 	if (!wave_initialized)
 		return;
-	clickbuffer = xcalloc (uae_s16, paula_sndbufsize / 2);
+	clickbuffer = xmalloc (uae_s16, paula_sndbufsize / 2);
 	sample_step = (freq << DS_SHIFT) / currprefs.sound_freq;
 }
 
@@ -321,14 +323,10 @@ static uae_s16 getsample (void)
 			}
 			if (div) {
 				int vol;
-				if (drv_has_disk[i])
-					vol = currprefs.dfxclickvolume_disk[i];
-				else
-					vol = currprefs.dfxclickvolume_empty[i];
+				vol = currprefs.dfxclickvolume;
 #ifdef __LIBRETRO__
-				/* Make empty drive either mute or less loud */
-				if (!drv_has_disk[i])
-					vol = (opt_floppy_sound_empty_mute) ? 100 : 100 - ((100 - currprefs.dfxclickvolume_disk[i]) / 4);
+				if (!drv_has_disk[i] && opt_floppy_sound_empty_mute)
+					vol = 100;
 #endif
 				total_sample += (smp * (100 - vol) / 100) / div;
 				total_div++;
@@ -342,7 +340,7 @@ static uae_s16 getsample (void)
 
 static void mix (void)
 {
-	size_t total = ((uae_u8*)paula_sndbufpt - (uae_u8*)paula_sndbuffer) / (get_audio_nativechannels (currprefs.sound_stereo) * 2);
+	int total = ((uae_u8*)paula_sndbufpt - (uae_u8*)paula_sndbuffer) / (get_audio_nativechannels (currprefs.sound_stereo) * 2);
 	while (clickcnt < total) {
 		clickbuffer[clickcnt++] = getsample ();
 	}
@@ -521,15 +519,7 @@ void driveclick_check_prefs (void)
 	driveclick_fdrawcmd_vsync ();
 	if (driveclick_active ())
 		dr_audio_activate ();
-	if (
-		currprefs.dfxclickvolume_disk[0] != changed_prefs.dfxclickvolume_disk[0] ||
-		currprefs.dfxclickvolume_disk[1] != changed_prefs.dfxclickvolume_disk[1] ||
-		currprefs.dfxclickvolume_disk[2] != changed_prefs.dfxclickvolume_disk[2] ||
-		currprefs.dfxclickvolume_disk[3] != changed_prefs.dfxclickvolume_disk[3] ||
-		currprefs.dfxclickvolume_empty[0] != changed_prefs.dfxclickvolume_empty[0] ||
-		currprefs.dfxclickvolume_empty[1] != changed_prefs.dfxclickvolume_empty[1] ||
-		currprefs.dfxclickvolume_empty[2] != changed_prefs.dfxclickvolume_empty[2] ||
-		currprefs.dfxclickvolume_empty[3] != changed_prefs.dfxclickvolume_empty[3] ||
+	if (currprefs.dfxclickvolume != changed_prefs.dfxclickvolume ||
 		currprefs.floppyslots[0].dfxclick != changed_prefs.floppyslots[0].dfxclick ||
 		currprefs.floppyslots[1].dfxclick != changed_prefs.floppyslots[1].dfxclick ||
 		currprefs.floppyslots[2].dfxclick != changed_prefs.floppyslots[2].dfxclick ||
@@ -539,15 +529,15 @@ void driveclick_check_prefs (void)
 		_tcscmp (currprefs.floppyslots[2].dfxclickexternal, changed_prefs.floppyslots[2].dfxclickexternal) ||
 		_tcscmp (currprefs.floppyslots[3].dfxclickexternal, changed_prefs.floppyslots[3].dfxclickexternal))
 	{
+		currprefs.dfxclickvolume = changed_prefs.dfxclickvolume;
 		for (int i = 0; i < 4; i++) {
 			currprefs.floppyslots[i].dfxclick = changed_prefs.floppyslots[i].dfxclick;
 			_tcscpy (currprefs.floppyslots[i].dfxclickexternal, changed_prefs.floppyslots[i].dfxclickexternal);
-			currprefs.dfxclickvolume_empty[i] = changed_prefs.dfxclickvolume_empty[i];
-			currprefs.dfxclickvolume_disk[i] = changed_prefs.dfxclickvolume_disk[i];
 		}
 		driveclick_init ();
 	}
 }
+
 
 #ifdef __LIBRETRO__
 #include "retrodep/driveclick_wav.c"
@@ -596,4 +586,4 @@ int driveclick_fdrawcmd_open(int drive)
 
 #endif /* __LIBRETRO__ */
 
-#endif
+#endif /* DRIVESOUND */

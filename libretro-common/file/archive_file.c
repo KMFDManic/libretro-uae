@@ -62,7 +62,7 @@ static int file_archive_get_file_list_cb(
 
       /* Skip if directory. */
       if (last_char == '/' || last_char == '\\' )
-         return 1;
+         return 0;
       
       string_list_initialize(&ext_list);
       if (string_split_noalloc(&ext_list, valid_exts, "|"))
@@ -72,7 +72,7 @@ static int file_archive_get_file_list_cb(
          if (!file_ext)
          {
             string_list_deinitialize(&ext_list);
-            return 1;
+            return 0;
          }
 
          if (!string_list_find_elem_prefix(&ext_list, ".", file_ext))
@@ -104,19 +104,22 @@ static int file_archive_extract_cb(const char *name, const char *valid_exts,
       char new_path[PATH_MAX_LENGTH];
       const char *delim;
 
-      if ((delim = path_get_archive_delim(userdata->archive_path)))
+      delim = path_get_archive_delim(userdata->archive_path);
+
+      if (delim)
       {
-         if (!string_is_equal_noncase(
-                  userdata->current_file_path, delim + 1))
+         if (!string_is_equal_noncase(userdata->current_file_path, delim + 1))
            return 1; /* keep searching for the right file */
       }
 
+      new_path[0] = '\0';
       if (userdata->extraction_directory)
-         fill_pathname_join_special(new_path, userdata->extraction_directory,
+         fill_pathname_join(new_path, userdata->extraction_directory,
                path_basename(name), sizeof(new_path));
       else
          fill_pathname_resolve_relative(new_path, userdata->archive_path,
                path_basename(name), sizeof(new_path));
+
 
       if (file_archive_perform_mode(new_path,
                 valid_exts, cdata, cmode, csize, size,
@@ -138,18 +141,25 @@ static int file_archive_parse_file_init(file_archive_transfer_t *state,
    char path[PATH_MAX_LENGTH];
    char *last                 = NULL;
 
+   path[0] = '\0';
+
    strlcpy(path, file, sizeof(path));
 
-   if ((last = (char*)path_get_archive_delim(path)))
-      *last  = '\0';
+   last = (char*)path_get_archive_delim(path);
 
-   if (!(state->backend = file_archive_get_file_backend(path)))
+   if (last)
+      *last = '\0';
+
+   state->backend = file_archive_get_file_backend(path);
+   if (!state->backend)
       return -1;
 
-   /* Failed to open archive. */
-   if (!(state->archive_file = filestream_open(path,
+   state->archive_file = filestream_open(path,
          RETRO_VFS_FILE_ACCESS_READ,
-         RETRO_VFS_FILE_ACCESS_HINT_NONE)))
+         RETRO_VFS_FILE_ACCESS_HINT_NONE);
+
+   /* Failed to open archive. */
+   if (!state->archive_file)
       return -1;
 
    state->archive_size = filestream_get_size(state->archive_file);
@@ -638,12 +648,16 @@ const struct file_archive_file_backend* file_archive_get_file_backend(const char
    const char *file_ext          = NULL;
    char *last                    = NULL;
 
+   newpath[0] = '\0';
+
    strlcpy(newpath, path, sizeof(newpath));
 
-   if ((last = (char*)path_get_archive_delim(newpath)))
-      *last  = '\0';
+   last = (char*)path_get_archive_delim(newpath);
 
-   file_ext  = path_get_extension(newpath);
+   if (last)
+      *last = '\0';
+
+   file_ext = path_get_extension(newpath);
 
 #ifdef HAVE_7ZIP
    if (string_is_equal_noncase(file_ext, "7z"))

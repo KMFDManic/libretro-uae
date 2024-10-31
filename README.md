@@ -1,6 +1,19 @@
 # PUAE LIBRETRO
 
-Based on WinUAE 5.3.0, git commit `5b86c94b9f9161f58340ed15059e4ab61cd0af3b`
+Based on PUAE 2.6.1, git commit `0186c1b16f7181ffa02d73e6920d3180ce457c46`
+
+Credits to:
+
+- Mustafa 'GnoStiC' TUFAN
+- Richard Drummond, [http://www.rcdrummond.net/uae/](http://www.rcdrummond.net/uae/)
+
+This port was based at start on PS3 version E-UAE 0.8.29-WIP4 release 8
+(so also credits to Ole.)
+
+E-UAE is based on the work of dozens of contributors including Bernd
+Schmidt (the original author and maintainer of UAE), Bernie Meyer (the
+author of the x86 JIT compiler), Toni Wilen (the current maintainer of
+WinUAE), and many more.
 
 ## Default controls
 
@@ -29,9 +42,7 @@ Based on WinUAE 5.3.0, git commit `5b86c94b9f9161f58340ed15059e4ab61cd0af3b`
 |-----------------|-------------------------------|
 | B / Enter       | Keypress                      |
 | A               | Toggle transparency           |
-| Y (Short)       | Toggle CapsLock               |
-| Y (Long)        | Quick map button              |
-| Y (Very long)   | Quick clear button            |
+| Y               | Toggle CapsLock               |
 | X               | Press Space                   |
 | Start           | Press Return                  |
 
@@ -41,10 +52,10 @@ Long press for sticky keys. Stickying the third key will replace the second.
 
 Some games use mouse instead of joystick. D-Pad can be switched between joystick and mouse control in several ways:
 
-- Use the core option: `Quick Menu > Core Options > RetroPad Joystick/Mouse`
+- Use the core option: `Quick Menu -> Options -> RetroPad Joystick/Mouse`
 - Bring up the virtual keyboard with `Select` button, and press the key labeled `J/M`
 - Press the default keyboard shortcut `Right Control`
-- Assign `Switch Joystick/Mouse` to any RetroPad button under `Quick Menu > Core Options`
+- Assign `Switch Joystick/Mouse` to any RetroPad button under `Quick Menu -> Options`
 
 ## Configuration
 
@@ -52,13 +63,13 @@ The following model presets are provided:
 
 | Short   | Long           | Kickstart | Chipset | Memory                          |
 |---------|----------------|-----------|---------|---------------------------------|
-| A500OG  | Amiga 500      | v1.3      | OCS     | 0.5MB Chip RAM                  |
+| A500OG  | Amiga 500      | v1.2      | OCS     | 0.5MB Chip RAM                  |
 | A500    | Amiga 500      | v1.3      | OCS     | 0.5MB Chip RAM + 0.5MB Slow RAM |
 | A500+   | Amiga 500+     | v2.04     | ECS     | 1MB Chip RAM                    |
 | A600    | Amiga 600      | v3.1      | ECS     | 2MB Chip RAM + 8MB Fast RAM     |
 | A1200OG | Amiga 1200     | v3.1      | AGA     | 2MB Chip RAM                    |
 | A1200   | Amiga 1200     | v3.1      | AGA     | 2MB Chip RAM + 8MB Fast RAM     |
-| A2000OG | Amiga 2000     | v1.3      | OCS     | 0.5MB Chip RAM + 0.5MB Slow RAM |
+| A2000OG | Amiga 2000     | v1.2      | OCS     | 0.5MB Chip RAM + 0.5MB Slow RAM |
 | A2000   | Amiga 2000     | v3.1      | ECS     | 1MB Chip RAM                    |
 | A4030   | Amiga 4000/030 | v3.1      | AGA     | 2MB Chip RAM + 8MB Fast RAM     |
 | A4040   | Amiga 4000/040 | v3.1      | AGA     | 2MB Chip RAM + 8MB Fast RAM     |
@@ -72,24 +83,24 @@ The models require matching Kickstart ROMs in RetroArch `system` directory.
 
 Amiga Forever and TOSEC filenames are also accepted.
 
-Encrypted Amiga Forever ROMs require `rom.key` also in `system` directory.
-
 The core has a somewhat compatible built-in AROS Kickstart, which is used as a fallback when the proper Kickstart is not found.
 
 *It is critical to use ROMs with the correct MD5!*
 
-| System     | Version                       | Filename               | Amiga Forever                 | Size      | MD5                              |
-|------------|-------------------------------|------------------------|-------------------------------|----------:|----------------------------------|
-| A500-A2000 | KS v1.2 rev 33.180            | **kick33180.A500**     | **amiga-os-120.rom**          |   262 144 | 85ad74194e87c08904327de1a9443b7a |
-| A500-A2000 | KS v1.3 rev 34.005            | **kick34005.A500**     | **amiga-os-130.rom**          |   262 144 | 82a21c1890cae844b3df741f2762d48d |
-| A500+      | KS v2.04 rev 37.175           | **kick37175.A500**     | **amiga-os-204.rom**          |   524 288 | dc10d7bdd1b6f450773dfb558477c230 |
-| A600       | KS v2.05 rev 37.350           | **kick37350.A600**     | **amiga-os-205-a600.rom**     |   524 288 | 465646c9b6729f77eea5314d1f057951 |
-| A600-A2000 | KS v3.1 rev 40.063            | **kick40063.A600**     | **amiga-os-310-a600.rom**     |   524 288 | e40a5dfb3d017ba8779faba30cbd1c8e |
-| A1200      | KS v3.0 rev 39.106            | **kick39106.A1200**    | **amiga-os-300-a1200.rom**    |   524 288 | b7cc148386aa631136f510cd29e42fc3 |
-| A1200      | KS v3.1 rev 40.068            | **kick40068.A1200**    | **amiga-os-310-a1200.rom**    |   524 288 | 646773759326fbac3b2311fd8c8793ee |
-| A4000      | KS v3.0 rev 39.106            | **kick39106.A4000**    | **amiga-os-300-a4000.rom**    |   524 288 | 9b8bdd5a3fd32c2a5a6f5b1aefc799a5 |
-| A4000      | KS v3.1 rev 40.068            | **kick40068.A4000**    | **amiga-os-310-a4000.rom**    |   524 288 | 9bdedde6a4f33555b4a270c8ca53297d |
-| CDTV       | CDTV extended ROM v1.0        | **kick34005.CDTV**     | **amiga-os-130-cdtv-ext.rom** |   262 144 | 89da1838a24460e4b93f4f0c5d92d48d |
+| System | Version                       | Filename               | Amiga Forever                 | Size      | MD5                              |
+|--------|-------------------------------|------------------------|-------------------------------|----------:|----------------------------------|
+| A500   | KS v1.2 rev 33.180            | **kick33180.A500**     | **amiga-os-120.rom**          |   262 144 | 85ad74194e87c08904327de1a9443b7a |
+| A500   | KS v1.3 rev 34.005            | **kick34005.A500**     | **amiga-os-130.rom**          |   262 144 | 82a21c1890cae844b3df741f2762d48d |
+| A500+  | KS v2.04 rev 37.175           | **kick37175.A500**     | **amiga-os-204.rom**          |   524 288 | dc10d7bdd1b6f450773dfb558477c230 |
+| A600   | KS v2.05 rev 37.350           | **kick37350.A600**     | **amiga-os-205-a600.rom**     |   524 288 | 465646c9b6729f77eea5314d1f057951 |
+| A600   | KS v3.1 rev 40.063            | **kick40063.A600**     | **amiga-os-310-a600.rom**     |   524 288 | e40a5dfb3d017ba8779faba30cbd1c8e |
+| A1200  | KS v3.0 rev 39.106            | **kick39106.A1200**    | **amiga-os-300-a1200.rom**    |   524 288 | b7cc148386aa631136f510cd29e42fc3 |
+| A1200  | KS v3.1 rev 40.068            | **kick40068.A1200**    | **amiga-os-310-a1200.rom**    |   524 288 | 646773759326fbac3b2311fd8c8793ee |
+| A2000  | KS v1.2 rev 33.180            | **kick33180.A500**     | **amiga-os-120.rom**          |   262 144 | 85ad74194e87c08904327de1a9443b7a |
+| A2000  | KS v3.1 rev 40.063            | **kick40063.A600**     | **amiga-os-310-a600.rom**     |   524 288 | e40a5dfb3d017ba8779faba30cbd1c8e |
+| A4000  | KS v3.0 rev 39.106            | **kick39106.A4000**    | **amiga-os-300-a4000.rom**    |   524 288 | 9b8bdd5a3fd32c2a5a6f5b1aefc799a5 |
+| A4000  | KS v3.1 rev 40.068            | **kick40068.A4000**    | **amiga-os-310-a4000.rom**    |   524 288 | 9bdedde6a4f33555b4a270c8ca53297d |
+| CDTV   | CDTV extended ROM v1.0        | **kick34005.CDTV**     | **amiga-os-130-cdtv-ext.rom** |   262 144 | 89da1838a24460e4b93f4f0c5d92d48d |
 
 CD32 requires either separate ROMs (Kickstart + extended ROM) or the combined ROM:
 
@@ -109,7 +120,7 @@ These parameters control the output resolution of the core (default bolded):
 | Video Standard       | **PAL 50Hz**, NTSC 60Hz                 |
 | Video Resolution     | **Automatic**, Low, High, Super-High    |
 | Video Line Mode      | **Automatic**, Single Line, Double Line |
-| Aspect Ratio         | **Automatic**, PAL, NTSC, 1:1           |
+| Aspect Ratio         | **Automatic**, PAL, NTSC                |
 
 With these settings all the standard resolutions are available:
 
@@ -153,7 +164,7 @@ The whole path (filename and directory) will be searched for the following tags 
 
 | Floppy | HD/LHA | CD    | String                                      | Result                                       |
 |--------|--------|-------|---------------------------------------------|----------------------------------------------|
-| **x**  | **x**  |       | **(A500OG)**, **(512K)**, **(512KB)**       | Amiga 500 (0.5MB Chip RAM)                   |
+| **x**  | **x**  |       | **(A500OG)**, **(512K)**                    | Amiga 500 (0.5MB Chip RAM)                   |
 | **x**  | **x**  |       | **(A500)**, **OCS**                         | Amiga 500 (0.5MB Chip RAM + 0.5MB Slow RAM)  |
 | **x**  | **x**  |       | **(A500+)**, **(A500PLUS)**                 | Amiga 500+ (1MB Chip RAM)                    |
 | **x**  | **x**  |       | **(A600)**, **ECS**                         | Amiga 600 (2MB Chip RAM + 8MB Fast RAM)      |
@@ -301,26 +312,12 @@ For games that support multiple disk drives, append "**(MD)**" as in "MultiDrive
 
 M3U playlist supports floppy disks, hard drives (all images are mounted at once) and compact discs.
 
-## LED interface
-
-Libretro LED interface is presented in the following order:
-
-1. Power
-2. Floppy drives
-3. HD/CD/MD (NVRAM)
-4. DF0
-5. DF1
-6. DF2
-7. DF3
-8. HD
-9. CD/MD (NVRAM)
-
 ## WHDLoad
 
 Pre-installed WHDLoad LHA archives can be launched directly without any kind of manual preparing and downloading.
 
 - WHDLoad helper files (Directory or HDF) will be generated to `saves`, `WHDLoad.prefs` will be generated to `system`
-- `WHDLoad.prefs` & `WHDLoad.key` & `rom.key` will be copied from `system` to the helper image
+- `WHDLoad.prefs` & `WHDLoad.key` will be copied from `system` to the helper image
 - Kickstarts will be copied automatically to the helper image
 - To update `WHDLoad:` simply delete the directory or the HDF
 
@@ -363,18 +360,16 @@ Pre-installed WHDLoad LHA archives can be launched directly without any kind of 
 - `NTSC` parameter can be used with WHDLoad.
 - Included `ClickNot` for suppressing drive clicking when drive sound emulation is enabled.
 - Included `MEmacs` for file editing (`custom` & `load`).
-- Included `xpkmaster.library`.
+- Updated WHDLoad to the latest one (18.5 2019-03-09).
 - New WHDLoad defaults:
     - `ButtonWait` (Waits for a button press in certain slaves when loading is so fast that you can't enjoy a picture or a tune).
     - `ReadDelay=0` & `WriteDelay=50` (These speed up OS switching on loadings and savings. Saves tend to corrupt HDFs with WriteDelay below 50).
 
 #### Latest changes
 
-- Updated WHDLoad to 18.9 (2023-05-04).
-- Downgraded WHDLoad to 18.6 due to a save related bug in 18.7.
-- Updated WHDLoad to the latest one (18.7 2021-10-23).
 - Support for Retroplay LHA installs.
 - Support for Arcadia installs (requires KS 1.2, `kick33180.A500` will be copied automatically).
+- Fixed `xpkmaster.library`.
 - Show `ReadMe` before running `MkCustom` after quitting.
 - Changed HDF filesystem from OFS to FFS. Prevents image corruption on unclean shutdowns.
 - Default launch method changed to `WBRun`.
@@ -408,11 +403,9 @@ Note the size of the HDF specified by SIZE_OF_HDF must be greater than size of t
 
 You can pass `.uae` configuration files and they will be appended to the core option configuration.
 
-If `puae_libretro_[model].uae` exists in RetroArch `saves` it will be appended to the model preset section.
-
 If `puae_libretro_global.uae` exists in RetroArch `saves` it will be appended to the configuration.
 
-If `[content].uae` exists in RetroArch `saves` it will be appended to the configuration.
+If `puae_libretro_[model].uae` exists in RetroArch `saves` it will replace the model preset section.
 
 The final generated configuration output is available in debug level log.
 
@@ -445,8 +438,6 @@ If you are using RDB HDF files, please use `0,0,0,512` instead of geometry numbe
 
 ## Latest features
 
-- Lightgun/pen (sonninnos)
-- Floppy write redirect (sonninnos)
 - Large HDF support (sonninnos)
 - Full framerate double line interlace backport (sonninnos)
 - Core-based ZIP extraction with automatic M3U generation (sonninnos)

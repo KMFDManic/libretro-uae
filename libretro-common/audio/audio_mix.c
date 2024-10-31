@@ -20,6 +20,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <memalign.h>
@@ -113,8 +114,7 @@ void audio_mix_free_chunk(audio_chunk_t *chunk)
    free(chunk);
 }
 
-audio_chunk_t* audio_mix_load_wav_file(const char *path, int sample_rate,
-      const char *resampler_ident, enum resampler_quality quality)
+audio_chunk_t* audio_mix_load_wav_file(const char *path, int sample_rate)
 {
 #ifdef HAVE_RWAV
    int sample_size;
@@ -132,15 +132,12 @@ audio_chunk_t* audio_mix_load_wav_file(const char *path, int sample_rate,
    chunk->resample_buf        = NULL;
    chunk->len                 = 0;
    chunk->resample_len        = 0;
+   chunk->rwav                = (rwav_t*)malloc(sizeof(rwav_t));
    chunk->sample_rate         = sample_rate;
    chunk->resample            = false;
    chunk->resampler           = NULL;
    chunk->resampler_data      = NULL;
    chunk->ratio               = 0.00f;
-   chunk->rwav                = (rwav_t*)malloc(sizeof(rwav_t));
-
-   if (!chunk->rwav)
-      goto error;
 
    chunk->rwav->bitspersample = 0;
    chunk->rwav->numchannels   = 0;
@@ -150,13 +147,19 @@ audio_chunk_t* audio_mix_load_wav_file(const char *path, int sample_rate,
    chunk->rwav->samples       = NULL;
 
    if (!filestream_read_file(path, &buf, &len))
+   {
+      printf("Could not open WAV file for reading.\n");
       goto error;
+   }
 
    chunk->buf                 = buf;
    chunk->len                 = len;
 
    if (rwav_load(chunk->rwav, chunk->buf, chunk->len) == RWAV_ITERATE_ERROR)
+   {
+      printf("error: could not load WAV file\n");
       goto error;
+   }
 
    /* numsamples does not know or care about
     * multiple channels, but we need space for 2 */
@@ -219,6 +222,7 @@ audio_chunk_t* audio_mix_load_wav_file(const char *path, int sample_rate,
    else if (sample_size != 2)
    {
       /* we don't support any other sample size besides 8 and 16-bit yet */
+      printf("error: we don't support a sample size of %d\n", sample_size);
       goto error;
    }
 
@@ -229,8 +233,8 @@ audio_chunk_t* audio_mix_load_wav_file(const char *path, int sample_rate,
 
       retro_resampler_realloc(&chunk->resampler_data,
             &chunk->resampler,
-            resampler_ident,
-            quality,
+            NULL,
+            RESAMPLER_QUALITY_DONTCARE,
             chunk->ratio);
 
       if (chunk->resampler && chunk->resampler_data)

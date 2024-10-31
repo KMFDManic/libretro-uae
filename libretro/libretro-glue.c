@@ -1,70 +1,49 @@
-#include "libretro-core.h"
-#include "libretro-glue.h"
-#include "libretro-graph.h"
-#include "libretro-mapper.h"
-#include "encodings/utf.h"
-#include "streams/file_stream.h"
-
 #include "sysconfig.h"
 #include "sysdeps.h"
 
 #include "options.h"
 #include "uae.h"
-#include "gui.h"
-#include "memory.h"
+#include "memory_uae.h"
 #include "xwin.h"
 #include "custom.h"
 #include "drawing.h"
 #include "hotkeys.h"
-#include "disk.h"
-#include "parser.h"
+#include "hrtimer.h"
+
 #include "inputdevice.h"
-#include "newcpu.h"
+void inputdevice_release_all_keys(void);
 extern int mouse_port[NORMAL_JPORTS];
 
-int log_scsi;
-int log_net;
-int tablet_log;
-int uaelib_debug;
-bool beamracer_debug;
-float vsync_vblank, vsync_hblank;
-int busywait;
-int vsync_activeheight, vsync_totalheight;
-int max_uae_width = EMULATOR_MAX_WIDTH;
-int max_uae_height = EMULATOR_MAX_HEIGHT;
-int pause_emulation;
-bool gfx_hdr;
-addrbank *gfxmem_banks[MAX_RTG_BOARDS];
-struct AmigaMonitor AMonitors[MAX_AMIGAMONITORS];
-static int display_change_requested;
-struct vidbuf_description *gfxvidinfo = &adisplays[0].gfxvidinfo;
-struct serparportinfo *comports[MAX_SERPAR_PORTS];
+#include "libretro-glue.h"
+#include "libretro-graph.h"
+#include "libretro-core.h"
+#include "libretro-mapper.h"
+#include "encodings/utf.h"
+#include "streams/file_stream.h"
 
 extern unsigned int retro_devices[RETRO_DEVICES];
 bool inputdevice_finalized = false;
-extern int retro_ui_get_pointer_state(uint8_t port, int *px, int *py, uint8_t *pb);
 
-extern unsigned short int defaultw;
-extern unsigned short int defaulth;
-extern unsigned char width_multiplier;
+extern unsigned int defaultw;
+extern unsigned int defaulth;
+extern unsigned int libretro_frame_end;
 
 unsigned short int* pixbuf = NULL;
+extern unsigned short int retro_bmp[RETRO_BMP_SIZE];
 extern char retro_temp_directory[RETRO_PATH_MAX];
+
+int prefs_changed = 0;
 
 int retro_thisframe_first_drawn_line;
 int retro_thisframe_last_drawn_line;
 int retro_min_diwstart;
 int retro_max_diwstop;
-extern int min_diwstart;
-extern int max_diwstop;
 
 extern int opt_statusbar;
 extern int opt_statusbar_position;
 
-unsigned int statusbar_message_timer = 0;
+int imagename_timer = 0;
 unsigned char statusbar_text[RETRO_PATH_MAX] = {0};
-extern float retro_refresh;
-extern char full_path[RETRO_PATH_MAX];
 
 static bool flag_empty(int val[16])
 {
@@ -108,10 +87,10 @@ static unsigned char* joystick_value_human(int val[16], int uae_device)
       switch (uae_device)
       {
          case 1:
-            if (opt_retropad_options == RETROPAD_OPTIONS_ROTATE || opt_retropad_options == RETROPAD_OPTIONS_ROTATE_JUMP)
+            if (opt_retropad_options == 1 || opt_retropad_options == 3)
                str[1] = ('2' | 0x80);
             else
-               str[1] = (str[1] | 0x80);
+               str[1] = ('1' | 0x80);
             break;
          case 3:
             str[1] = ('L' | 0x80);
@@ -130,7 +109,7 @@ static unsigned char* joystick_value_human(int val[16], int uae_device)
       switch (uae_device)
       {
          case 1:
-            if (opt_retropad_options == RETROPAD_OPTIONS_ROTATE || opt_retropad_options == RETROPAD_OPTIONS_ROTATE_JUMP)
+            if (opt_retropad_options == 1 || opt_retropad_options == 3)
                ; /* no-op */
             else
                str[1] = ('2' | 0x80);
@@ -152,8 +131,8 @@ static unsigned char* joystick_value_human(int val[16], int uae_device)
       switch (uae_device)
       {
          case 1:
-            if (opt_retropad_options == RETROPAD_OPTIONS_ROTATE || opt_retropad_options == RETROPAD_OPTIONS_ROTATE_JUMP)
-               str[1] = (str[1] | 0x80);
+            if (opt_retropad_options == 1 || opt_retropad_options == 3)
+               str[1] = ('1' | 0x80);
             break;
          case 3:
             str[1] = ('M' | 0x80);
@@ -171,9 +150,6 @@ static unsigned char* joystick_value_human(int val[16], int uae_device)
    {
       switch (uae_device)
       {
-         case 1:
-         case 3:
-            break;
          case 4:
             str[1] = ('4' | 0x80);
             break;
@@ -220,7 +196,7 @@ static unsigned int joystick_color(int val[16])
 {
    unsigned color = 0;
 
-   if (opt_cd32pad_options == RETROPAD_OPTIONS_ROTATE || opt_cd32pad_options == RETROPAD_OPTIONS_ROTATE_JUMP)
+   if (opt_cd32pad_options == 1 || opt_cd32pad_options == 3)
    {
       if (val[RETRO_DEVICE_ID_JOYPAD_Y])
          color |= (pix_bytes == 4) ? RGB888(248,0,0) : RGB565(255,0,0);
@@ -268,12 +244,8 @@ void display_current_image(const char *image, bool inserted)
 {
    static char imagename[RETRO_PATH_MAX] = {0};
    static char imagename_prev[RETRO_PATH_MAX] = {0};
-   unsigned char* imagename_local;
 
-   /* Skip the initial insert message with forced message mode */
-   if (libretro_runloop_active || (!libretro_runloop_active && !(opt_statusbar & STATUSBAR_MESSAGES)))
-      statusbar_message_timer = 2 * retro_refresh;
-
+   imagename_timer = 150;
    if (strcmp(image, ""))
    {
       snprintf(imagename, sizeof(imagename), "%s%.98s", "  ", path_basename(image));
@@ -282,41 +254,19 @@ void display_current_image(const char *image, bool inserted)
    else
       snprintf(imagename, sizeof(imagename), "%.100s", imagename_prev);
 
-   imagename_local = utf8_to_local_string_alloc(imagename);
-   snprintf(&statusbar_text[0], sizeof(statusbar_text), "%-100s", imagename_local);
+   snprintf(&statusbar_text[0], sizeof(statusbar_text), "%-100s", imagename);
 
    if (inserted)
-      statusbar_text[0] = (7 | 0x80);
-   else if (!strcmp(image, ""))
       statusbar_text[0] = (8 | 0x80);
-
-   free(imagename_local);
-   imagename_local = NULL;
-}
-
-#include "statusline.h"
-extern void draw_status_line(int monid, int line, int statusy);
-static void retro_draw_frame_extras(void)
-{
-   struct amigadisplay *ad = &adisplays[0];
-   struct vidbuf_description *vidinfo = &ad->gfxvidinfo;
-   struct vidbuffer *vb = &vidinfo->drawbuffer;
-
-   int slx, sly;
-   int mult = 1;
-   statusline_getpos(vb->monitor_id, &slx, &sly, vb->outwidth, vb->outheight);
-   for (int i = 0; i < TD_TOTAL_HEIGHT * mult; i++) {
-      int line = sly + i;
-      draw_status_line(vb->monitor_id, line, i);
-   }
+   else if (!strcmp(image, ""))
+      statusbar_text[0] = (9 | 0x80);
 }
 
 void print_statusbar(void)
 {
-   if (opt_statusbar & STATUSBAR_BASIC && !statusbar_message_timer)
-      goto end;
+   if (opt_statusbar & STATUSBAR_BASIC && !imagename_timer)
+      return;
 
-   int BOX_X                = retrox_crop;
    int BOX_Y                = 0;
    int BOX_WIDTH            = 0;
    int BOX_HEIGHT           = 11;
@@ -341,58 +291,56 @@ void print_statusbar(void)
    int FONT_COLOR           = (pix_bytes == 4) ? 0xffffff : 0xffff;;
    int FONT_SLOT            = 34 * FONT_WIDTH;
 
-   int TEXT_X               = 1 * FONT_WIDTH + retrox_crop;
+   int TEXT_X               = 1 * FONT_WIDTH;
    int TEXT_Y               = 0;
    int TEXT_LENGTH          = (video_config & PUAE_VIDEO_DOUBLELINE) ? 128 : 64;
 
    /* Statusbar location */
    /* Top */
    if (opt_statusbar_position < 0)
-      TEXT_Y = BOX_PADDING + retroy_crop;
+      TEXT_Y = BOX_PADDING;
    /* Bottom */
    else
-      TEXT_Y = gfxvidinfo->drawbuffer.outheight - opt_statusbar_position - BOX_HEIGHT + BOX_PADDING;
+      TEXT_Y = gfxvidinfo.outheight - opt_statusbar_position - BOX_HEIGHT + BOX_PADDING;
    BOX_Y = TEXT_Y - BOX_PADDING;
 
    /* Statusbar size */
-   BOX_WIDTH = retrow_crop;
-   int CROP_WIDTH_OFFSET = retrow - retrow_crop;
+   BOX_WIDTH = zoomed_width;
+   int ZOOMED_WIDTH_OFFSET = retrow - zoomed_width;
 
    /* Video resolution */
-   int TEXT_X_RESOLUTION = TEXT_X + (FONT_SLOT*4) + (FONT_WIDTH*16) - (CROP_WIDTH_OFFSET/2);
+   int TEXT_X_RESOLUTION = TEXT_X + (FONT_SLOT*4) + (FONT_WIDTH*16) - (ZOOMED_WIDTH_OFFSET/2);
    unsigned char RESOLUTION[10] = {0};
-   snprintf(RESOLUTION, sizeof(RESOLUTION), "%4dx%3d", retrow_crop, retroh_crop);
+   snprintf(RESOLUTION, sizeof(RESOLUTION), "%4dx%3d", zoomed_width, zoomed_height);
 
    /* Model & memory */
-   int TEXT_X_MODEL  = TEXT_X + (FONT_SLOT*6) + (FONT_WIDTH*35) - CROP_WIDTH_OFFSET;
-   int TEXT_X_MEMORY = TEXT_X + (FONT_SLOT*6) + (FONT_WIDTH*3) - CROP_WIDTH_OFFSET;
+   int TEXT_X_MODEL  = TEXT_X + (FONT_SLOT*6) + (FONT_WIDTH*32) - ZOOMED_WIDTH_OFFSET;
+   int TEXT_X_MEMORY = TEXT_X + (FONT_SLOT*6) + (FONT_WIDTH*6) - ZOOMED_WIDTH_OFFSET;
    /* Sacrifice memory slot if there is not enough width */
    if (!(video_config & PUAE_VIDEO_DOUBLELINE))
    {
-      if (TEXT_X_MEMORY < (TEXT_X_RESOLUTION + FONT_SLOT + (FONT_WIDTH*14)))
+      if (TEXT_X_MEMORY < (TEXT_X_RESOLUTION + FONT_SLOT + (FONT_WIDTH*20)))
          TEXT_X_MEMORY = -1;
    }
 
    unsigned char MODEL[10] = {0};
    unsigned char MEMORY[5] = {0};
    float mem_size = 0;
-   mem_size  = (float)(currprefs.chipmem.size / 0x80000) / 2;
-   mem_size += (float)(currprefs.bogomem.size / 0x40000) / 4;
-   mem_size += (float)(currprefs.fastmem[0].size / 0x100000);
-   mem_size += (float)(currprefs.z3fastmem[0].size / 0x100000);
+   mem_size  = (float)(currprefs.chipmem_size / 0x80000) / 2;
+   mem_size += (float)(currprefs.bogomem_size / 0x40000) / 4;
+   mem_size += (float)(currprefs.fastmem_size / 0x100000);
    if (TEXT_X_MEMORY > 0)
-      snprintf(MEMORY, sizeof(MEMORY), (mem_size < 10) ? "%3.1fM" : "%3.0fM", mem_size);
-
+      snprintf(MEMORY, sizeof(MEMORY), (mem_size < 1) ? "%0.1fM" : "%2.0fM", mem_size);
    switch (currprefs.cs_compatible)
    {
       case CP_A500:
-         snprintf(MODEL, sizeof(MODEL), "%s", "A500");
+         snprintf(MODEL, sizeof(MODEL), "%s", " A500");
          break;
       case CP_A500P:
          snprintf(MODEL, sizeof(MODEL), "%s", "A500+");
          break;
       case CP_A600:
-         snprintf(MODEL, sizeof(MODEL), "%s", "A600");
+         snprintf(MODEL, sizeof(MODEL), "%s", " A600");
          break;
       case CP_A1200:
          snprintf(MODEL, sizeof(MODEL), "%s", "A1200");
@@ -404,19 +352,19 @@ void print_statusbar(void)
          snprintf(MODEL, sizeof(MODEL), "%s", "A4000");
          break;
       case CP_CDTV:
-         snprintf(MODEL, sizeof(MODEL), "%s", "CDTV");
+         snprintf(MODEL, sizeof(MODEL), "%s", " CDTV");
          break;
       case CP_CD32:
-         snprintf(MODEL, sizeof(MODEL), "%s", "CD32");
+         snprintf(MODEL, sizeof(MODEL), "%s", " CD32");
          break;
    }
 
    /* Double line positions */
    if (video_config & PUAE_VIDEO_DOUBLELINE)
    {
-      TEXT_X_RESOLUTION = TEXT_X + (FONT_SLOT*9)  + (FONT_WIDTH*25) - (CROP_WIDTH_OFFSET/2);
-      TEXT_X_MODEL      = TEXT_X + (FONT_SLOT*17) + (FONT_WIDTH*20) - CROP_WIDTH_OFFSET;
-      TEXT_X_MEMORY     = TEXT_X + (FONT_SLOT*16) + (FONT_WIDTH*15) - CROP_WIDTH_OFFSET;
+      TEXT_X_RESOLUTION = TEXT_X + (FONT_SLOT*15) + (FONT_WIDTH*5) - ZOOMED_WIDTH_OFFSET;
+      TEXT_X_MODEL      = TEXT_X + (FONT_SLOT*17) + (FONT_WIDTH*15) - ZOOMED_WIDTH_OFFSET;
+      TEXT_X_MEMORY     = TEXT_X + (FONT_SLOT*16) + (FONT_WIDTH*25) - ZOOMED_WIDTH_OFFSET;
    }
 
    /* Joy port indicators */
@@ -446,25 +394,31 @@ void print_statusbar(void)
    /* Regular joyflags */
    if (!retro_mousemode)
    {
-      if (is_cd32pad(0))
-         snprintf(JOYMODE1, sizeof(JOYMODE1), "%2s", "C1");
-      else if (retro_devices[0] == RETRO_DEVICE_PUAE_ANALOG)
-         snprintf(JOYMODE1, sizeof(JOYMODE1), "%2s", "A1");
-      else if (retro_devices[0] == RETRO_DEVICE_PUAE_LIGHTGUN
-            || retro_devices[0] == RETRO_DEVICE_PUAE_LIGHTPEN)
-         snprintf(JOYMODE1, sizeof(JOYMODE1), "%2s", "L1");
-      else
-         snprintf(JOYMODE1, sizeof(JOYMODE1), "%2s", "J1");
+      switch (retro_devices[0])
+      {
+         case RETRO_DEVICE_PUAE_CD32PAD:
+            snprintf(JOYMODE1, sizeof(JOYMODE1), "%2s", "C1");
+            break;
+         case RETRO_DEVICE_PUAE_ANALOG:
+            snprintf(JOYMODE1, sizeof(JOYMODE1), "%2s", "A1");
+            break;
+         default:
+            snprintf(JOYMODE1, sizeof(JOYMODE1), "%2s", "J1");
+            break;
+      }
 
-      if (is_cd32pad(1))
-         snprintf(JOYMODE2, sizeof(JOYMODE2), "%2s", "C2");
-      else if (retro_devices[1] == RETRO_DEVICE_PUAE_ANALOG)
-         snprintf(JOYMODE2, sizeof(JOYMODE2), "%2s", "A2");
-      else if (retro_devices[1] == RETRO_DEVICE_PUAE_LIGHTGUN
-            || retro_devices[1] == RETRO_DEVICE_PUAE_LIGHTPEN)
-         snprintf(JOYMODE2, sizeof(JOYMODE2), "%2s", "L2");
-      else
-         snprintf(JOYMODE2, sizeof(JOYMODE2), "%2s", "J2");
+      switch (retro_devices[1])
+      {
+         case RETRO_DEVICE_PUAE_CD32PAD:
+            snprintf(JOYMODE2, sizeof(JOYMODE2), "%2s", "C2");
+            break;
+         case RETRO_DEVICE_PUAE_ANALOG:
+            snprintf(JOYMODE1, sizeof(JOYMODE1), "%2s", "A2");
+            break;
+         default:
+            snprintf(JOYMODE2, sizeof(JOYMODE2), "%2s", "J2");
+            break;
+      }
    }
    else
    {
@@ -473,25 +427,31 @@ void print_statusbar(void)
    }
 
    /* Regular ports */
-   if (is_cd32pad(0))
-      snprintf(JOYPORT1, sizeof(JOYPORT1), "%3s", joystick_value_human(jflag[0], 2));
-   else if (retro_devices[0] == RETRO_DEVICE_PUAE_ANALOG)
-      snprintf(JOYPORT1, sizeof(JOYPORT1), "%3s", joystick_value_human(aflag[0], 4));
-   else if (retro_devices[0] == RETRO_DEVICE_PUAE_LIGHTGUN
-         || retro_devices[0] == RETRO_DEVICE_PUAE_LIGHTPEN)
-      snprintf(JOYPORT1, sizeof(JOYPORT1), "%3s", joystick_value_human(mflag[0], 3));
-   else
-      snprintf(JOYPORT1, sizeof(JOYPORT1), "%3s", joystick_value_human(jflag[0], 1));
+   switch (retro_devices[0])
+   {
+      case RETRO_DEVICE_PUAE_CD32PAD:
+         snprintf(JOYPORT1, sizeof(JOYPORT1), "%3s", joystick_value_human(jflag[0], 2));
+         break;
+      case RETRO_DEVICE_PUAE_ANALOG:
+         snprintf(JOYPORT1, sizeof(JOYPORT1), "%3s", joystick_value_human(aflag[0], 4));
+         break;
+      default:
+         snprintf(JOYPORT1, sizeof(JOYPORT1), "%3s", joystick_value_human(jflag[0], 1));
+         break;
+   }
 
-   if (is_cd32pad(1))
-      snprintf(JOYPORT2, sizeof(JOYPORT2), "%3s", joystick_value_human(jflag[1], 2));
-   else if (retro_devices[1] == RETRO_DEVICE_PUAE_ANALOG)
-      snprintf(JOYPORT2, sizeof(JOYPORT2), "%3s", joystick_value_human(aflag[1], 4));
-   else if (retro_devices[1] == RETRO_DEVICE_PUAE_LIGHTGUN
-         || retro_devices[1] == RETRO_DEVICE_PUAE_LIGHTPEN)
-      snprintf(JOYPORT2, sizeof(JOYPORT2), "%3s", joystick_value_human(mflag[1], 3));
-   else
-      snprintf(JOYPORT2, sizeof(JOYPORT2), "%3s", joystick_value_human(jflag[1], 1));
+   switch (retro_devices[1])
+   {
+      case RETRO_DEVICE_PUAE_CD32PAD:
+         snprintf(JOYPORT2, sizeof(JOYPORT2), "%3s", joystick_value_human(jflag[1], 2));
+         break;
+      case RETRO_DEVICE_PUAE_ANALOG:
+         snprintf(JOYPORT2, sizeof(JOYPORT2), "%3s", joystick_value_human(aflag[1], 4));
+         break;
+      default:
+         snprintf(JOYPORT2, sizeof(JOYPORT2), "%3s", joystick_value_human(jflag[1], 1));
+         break;
+   }
 
    /* Parallel ports, hidden if not connected */
    if (retro_devices[2])
@@ -506,16 +466,12 @@ void print_statusbar(void)
    }
 
    /* Mouse flags */
-   if (!flag_empty(mflag[1])
-         && (  retro_devices[1] != RETRO_DEVICE_PUAE_LIGHTGUN
-            && retro_devices[1] != RETRO_DEVICE_PUAE_LIGHTPEN))
+   if (!flag_empty(mflag[1]))
    {
       snprintf(JOYMODE1, sizeof(JOYMODE1), "%2s", "M1");
       snprintf(JOYPORT1, sizeof(JOYPORT1), "%3s", joystick_value_human(mflag[1], 3));
    }
-   if (!flag_empty(mflag[0])
-      && (  retro_devices[0] != RETRO_DEVICE_PUAE_LIGHTGUN
-         && retro_devices[0] != RETRO_DEVICE_PUAE_LIGHTPEN))
+   if (!flag_empty(mflag[0]))
    {
       snprintf(JOYMODE2, sizeof(JOYMODE2), "%2s", "M2");
       snprintf(JOYPORT2, sizeof(JOYPORT2), "%3s", joystick_value_human(mflag[0], 3));
@@ -539,18 +495,18 @@ void print_statusbar(void)
    /* Button colorize CD32 Pad */
    int JOY1_COLOR = FONT_COLOR;
    int JOY2_COLOR = FONT_COLOR;
-   if (is_cd32pad(0))
+   if (retro_devices[0] == RETRO_DEVICE_PUAE_CD32PAD)
       JOY1_COLOR = joystick_color(jflag[0]);
-   if (is_cd32pad(1))
+   if (retro_devices[1] == RETRO_DEVICE_PUAE_CD32PAD)
       JOY2_COLOR = joystick_color(jflag[1]);
 
    /* Statusbar output */
-   draw_fbox(BOX_X, BOX_Y, BOX_WIDTH, BOX_HEIGHT, 0, GRAPH_ALPHA_100);
+   draw_fbox(0, BOX_Y, BOX_WIDTH, BOX_HEIGHT, 0, GRAPH_ALPHA_100);
 
-   if (statusbar_message_timer)
+   if (imagename_timer > 0)
    {
       draw_text(TEXT_X, TEXT_Y, FONT_COLOR, 0, GRAPH_ALPHA_100, GRAPH_BG_ALL, FONT_WIDTH, FONT_HEIGHT, TEXT_LENGTH, statusbar_text);
-      goto end;
+      return;
    }
 
    draw_text(TEXT_X_JOYMODE1,   TEXT_Y, FONT_COLOR, 0, GRAPH_ALPHA_100, GRAPH_BG_ALL, FONT_WIDTH, FONT_HEIGHT, 10, JOYMODE1);
@@ -568,10 +524,15 @@ void print_statusbar(void)
    draw_text(TEXT_X_RESOLUTION, TEXT_Y, FONT_COLOR, 0, GRAPH_ALPHA_100, GRAPH_BG_ALL, FONT_WIDTH, FONT_HEIGHT, 10, RESOLUTION);
    draw_text(TEXT_X_MEMORY,     TEXT_Y, FONT_COLOR, 0, GRAPH_ALPHA_100, GRAPH_BG_ALL, FONT_WIDTH, FONT_HEIGHT, 10, MEMORY);
    draw_text(TEXT_X_MODEL,      TEXT_Y, FONT_COLOR, 0, GRAPH_ALPHA_100, GRAPH_BG_ALL, FONT_WIDTH, FONT_HEIGHT, 10, MODEL);
+}
 
-end:
-   /* UAE internal LED has to come after statusbar */
-   retro_draw_frame_extras();
+
+
+
+
+int gui_init (void)
+{
+   return 0;
 }
 
 /*
@@ -581,57 +542,19 @@ void target_save_options (struct zfile* f, struct uae_prefs *p)
 {
 }
 
-int target_parse_option (struct uae_prefs *p, const char *option, const char *value, int type)
+int target_parse_option (struct uae_prefs *p, const char *option, const char *value)
 {
    return 0;
 }
 
 void target_default_options (struct uae_prefs *p, int type)
 {
-   p->start_gui = false;
-   p->use_serial = true;
-   p->sound_auto = false;
-   p->leds_on_screen = 1;
-   p->bogomem.size = 0x00000000;
-   p->floppy_auto_ext2 = 2;
-   p->nr_floppies = 1;
-   p->floppyslots[1].dfxtype = DRV_NONE;
-   p->lightpen_crosshair = false;
-
-   p->jports[0].jd[0].id = JSEM_MICE;
-   p->jports[1].jd[0].id = JSEM_JOYS;
-
-   p->gfx_monitor[0].gfx_size_fs.width  = EMULATOR_MAX_WIDTH;
-   p->gfx_monitor[0].gfx_size_fs.height = EMULATOR_MAX_HEIGHT;
-
-   /* Required for SCSI CD image mounts */
-   p->win32_automount_cddrives = true;
-
-   /* Required for parallel port joysticks */
-   p->win32_samplersoundcard = -1;
 }
 
-void target_fixup_options (struct uae_prefs *p)
-{
-   p->gfx_iscanlines = 1;
-   p->gfx_pscanlines = 0;
-
-   /* Allow only full Cycle-exact with 68000 */
-   if (p->cpu_memory_cycle_exact && !p->cpu_cycle_exact && p->cpu_model < 68020)
-      p->cpu_cycle_exact = true;
-
-   /* Slow down 68020 memory Cycle-exact default clock */
-   if (!p->cpu_cycle_exact && p->cpu_memory_cycle_exact && !p->cpu_clock_multiplier && p->cpu_model == 68020)
-      p->cpu_clock_multiplier = 2 * 256;
-}
-
-/*** Input ***/
-
-/* Mouse */
+/* --- mouse input --- */
 void retro_mouse(int port, int dx, int dy)
 {
    mouse_port[port] = 1;
-   cd32_pad_enabled[port] = 0;
    setmousestate(port, 0, dx, 0);
    setmousestate(port, 1, dy, 0);
 }
@@ -639,21 +562,10 @@ void retro_mouse(int port, int dx, int dy)
 void retro_mouse_button(int port, int button, int state)
 {
    mouse_port[port] = 1;
-   cd32_pad_enabled[port] = 0;
    setmousebuttonstate(port, button, state);
 }
 
-static void retro_cd32pad_enable(int port)
-{
-   if (     (retro_devices[port] == RETRO_DEVICE_PUAE_CD32PAD)
-         || (  (retro_devices[port] == RETRO_DEVICE_JOYPAD)
-               && (strstr(full_path, "CD32") || currprefs.cs_compatible == CP_CD32)
-            )
-      )
-      cd32_pad_enabled[port] = 1;
-}
-
-/* Joystick */
+/* --- joystick input --- */
 void retro_joystick(int port, int axis, int state)
 {
    /* Disable mouse in normal ports, joystick/mouse inverted */
@@ -661,9 +573,6 @@ void retro_joystick(int port, int axis, int state)
    {
       int m_port = (port == 0) ? 1 : 0;
       mouse_port[m_port] = 0;
-
-      if (!cd32_pad_enabled[m_port])
-         retro_cd32pad_enable(m_port);
    }
    setjoystickstate(port, axis, state, 1);
 }
@@ -675,7 +584,6 @@ void retro_joystick_analog(int port, int axis, int state)
    {
       int m_port = (port == 0) ? 1 : 0;
       mouse_port[m_port] = 0;
-      cd32_pad_enabled[m_port] = 0;
    }
    setjoystickstate(port, axis, state, 32768);
 }
@@ -687,54 +595,11 @@ void retro_joystick_button(int port, int button, int state)
    {
       int m_port = (port == 0) ? 1 : 0;
       mouse_port[m_port] = 0;
-
-      if (!cd32_pad_enabled[m_port])
-         retro_cd32pad_enable(m_port);
    }
    setjoybuttonstate(port, button, state);
 }
 
-void retro_arcadia_button(int port, int button, int state)
-{
-   if (port < 2)
-   {
-      switch (button)
-      {
-         case 6:
-            if (state)
-               retro_key_down((port == 0) ? RETROK_F2 : RETROK_F1);
-            else
-               retro_key_up((port == 0) ? RETROK_F2 : RETROK_F1);
-            break;
-         case 5:
-            if (state)
-               retro_key_down(RETROK_F5);
-            else
-               retro_key_up(RETROK_F5);
-            break;
-         case 2:
-         case 3:
-            if (state)
-               retro_key_down((port == 0) ? RETROK_F4 : RETROK_F3);
-            else
-               retro_key_up((port == 0) ? RETROK_F4 : RETROK_F3);
-            break;
-         case 1:
-            if (state)
-               retro_key_down((port == 0) ? RETROK_RSHIFT : RETROK_LSHIFT);
-            else
-               retro_key_up((port == 0) ? RETROK_RSHIFT : RETROK_LSHIFT);
-            break;
-         case 0:
-            retro_joystick_button(port, button, state);
-            break;
-         default:
-            break;
-      }
-   }
-}
-
-/* Keyboard */
+/* --- keyboard input --- */
 void retro_key_down(int key)
 {
    retro_key_state_internal[key] = 1;
@@ -747,49 +612,9 @@ void retro_key_up(int key)
    inputdevice_do_keyboard(keyboard_translation[key], 0);
 }
 
-/* Pointer / lightgun */
-void retro_lightpen_update(void)
-{
-   uint8_t i;
-   uint8_t buttons = 0;
-   int x = 0, y = 0;
 
-   if (!lightpen_enabled)
-      return;
-
-   for (i = 0; i < 2; i++)
-   {
-      uint8_t uae_port = (i == 0) ? 1 : 0;
-
-      x = y = buttons = 0;
-
-      if (retro_devices[i] != RETRO_DEVICE_PUAE_LIGHTGUN
-       && retro_devices[i] != RETRO_DEVICE_PUAE_LIGHTPEN)
-         continue;
-
-      retro_ui_get_pointer_state(i, &x, &y, &buttons);
-
-#if 0
-      printf("%s * port=%d uae_port=%d x=%i y=%i b=%02x\n", __func__, i, uae_port, x, y, buttons);
-#endif
-
-      /* These are post-corrections to UAE internal
-       * mouse-to-lightpen translation, which must
-       * be active in order to lightpen be active.
-       * Buttons are set where mouse movement is set. */
-      lightpen_x[i] = x;
-      lightpen_y[i] = y;
-   }
-}
-
-
-/* Graphics */
-int lockscr(struct vidbuffer *vb, bool fullupdate, bool first, bool skip)
-{
-   return 1;
-}
-
-void unlockscr(struct vidbuffer *vb, int y_start, int y_end)
+/* retro */
+void retro_flush_screen (struct vidbuf_description *gfxinfo, int ystart, int yend)
 {
    /* These values must be cached here, since the
     * source variables will be reset before the frame
@@ -799,43 +624,40 @@ void unlockscr(struct vidbuffer *vb, int y_start, int y_end)
    retro_min_diwstart               = min_diwstart;
    retro_max_diwstop                = max_diwstop;
 
-   /* Align the resulting Automatic Crop screen height to even number */
-   if (!retro_av_info_is_lace && (retro_thisframe_last_drawn_line - retro_thisframe_first_drawn_line + 1) % 2)
-      retro_thisframe_last_drawn_line++;
-
-   if (retro_thisframe_first_drawn_line > 0)
-      retro_thisframe_first_drawn_line--;
-
-   if (retro_thisframe_last_drawn_line > 0)
-      retro_thisframe_last_drawn_line--;
-   if (!retro_thisframe_last_drawn_line)
-      retro_thisframe_last_drawn_line = -1;
-
    /* Flag that we should end the frame, return out of retro_run */
-   libretro_frame_end = true;
-   set_special(1);
-
-   if (lightpen_enabled)
-      retro_lightpen_update();
-
-#ifdef WITH_MPEG2
-   /* CD32 FMV exceptions */
-   if (!changed_prefs.cartfile[0] && gfxvidinfo->drawbuffer.tempbufferinuse)
-      gfxvidinfo->drawbuffer.tempbufferinuse = false;
-
-   if (gfxvidinfo->drawbuffer.tempbufferinuse)
-   {
-      retro_thisframe_first_drawn_line = thisframe_first_drawn_line = minfirstline;
-      retro_thisframe_last_drawn_line  = thisframe_last_drawn_line  = minfirstline + (retroh / 2);
-      gui_flicker_led(LED_CD, 0, 1);
-   }
-#endif
+   libretro_frame_end = 1;
 }
 
-int graphics_init(bool mousecapture)
+void retro_flush_block (struct vidbuf_description *gfxinfo, int ystart, int yend)
+{
+}
+
+void retro_flush_line (struct vidbuf_description *gfxinfo, int y)
+{
+}
+
+void retro_flush_clear_screen(struct vidbuf_description *gfxinfo)
+{
+}
+
+int retro_lockscr(struct vidbuf_description *gfxinfo)
+{
+   return 1;
+}
+
+void retro_unlockscr(struct vidbuf_description *gfxinfo)
+{
+}
+
+
+
+int graphics_init(void)
 {
    if (pixbuf != NULL)
       return 1;
+
+   currprefs.gfx_size_win.width = defaultw;
+   currprefs.gfx_size_win.height = defaulth;
 
    pixbuf = (unsigned short int*) &retro_bmp[0];
    if (pixbuf == NULL)
@@ -844,35 +666,30 @@ int graphics_init(bool mousecapture)
       return -1;
    }
 
-   gfxvidinfo->drawbuffer.width_allocated    = defaultw;
-   gfxvidinfo->drawbuffer.height_allocated   = defaulth;
-   gfxvidinfo->drawbuffer.pixbytes           = pix_bytes;
-   gfxvidinfo->drawbuffer.rowbytes           = gfxvidinfo->drawbuffer.width_allocated * gfxvidinfo->drawbuffer.pixbytes;
-   gfxvidinfo->drawbuffer.bufmem             = (unsigned char*)pixbuf;
-   gfxvidinfo->drawbuffer.linemem            = 0;
-   gfxvidinfo->drawbuffer.emergmem           = 0;
+   gfxvidinfo.width_allocated = currprefs.gfx_size_win.width;
+   gfxvidinfo.height_allocated = currprefs.gfx_size_win.height;
+   gfxvidinfo.maxblocklines = 1000;
+   gfxvidinfo.pixbytes = pix_bytes;
+   gfxvidinfo.rowbytes = gfxvidinfo.width_allocated * gfxvidinfo.pixbytes;
+   gfxvidinfo.bufmem = (unsigned char*)pixbuf;
+   gfxvidinfo.emergmem = 0;
+   gfxvidinfo.linemem = 0;
 
+   gfxvidinfo.lockscr = retro_lockscr;
+   gfxvidinfo.unlockscr = retro_unlockscr;
+   gfxvidinfo.flush_block = retro_flush_block;
+   gfxvidinfo.flush_clear_screen = retro_flush_clear_screen;
+   gfxvidinfo.flush_screen = retro_flush_screen;
+   gfxvidinfo.flush_line = retro_flush_line;
+
+   prefs_changed = 1;
+   inputdevice_release_all_keys();
+#if 0
+   reset_hotkeys();
+#endif
    reset_drawing();
    graphics_setup();
-   display_change_requested = 0;
-
-#ifdef WITH_MPEG2
-   allocvidbuffer(0, &gfxvidinfo->tempbuffer, defaultw, defaulth, pix_bytes * 8);
-   gfxvidinfo->tempbuffer.bufmem             = (unsigned char*)pixbuf;
-#endif
-
-#if 0
-   printf("%s: %dx%dx%d bufmem_alloc=%d\n", __func__,
-         gfxvidinfo->drawbuffer.width_allocated,
-         gfxvidinfo->drawbuffer.height_allocated,
-         gfxvidinfo->drawbuffer.pixbytes,
-         gfxvidinfo->drawbuffer.bufmem_allocated);
-#endif
    return 1;
-}
-
-void graphics_reset(bool forced)
-{
 }
 
 int is_fullscreen (void)
@@ -885,14 +702,23 @@ int is_vsync (void)
    return 0;
 }
 
+int mousehack_allowed (void)
+{
+   return 0;
+}
+
+int debuggable (void)
+{
+   return 0;
+}
 
 int graphics_setup(void)
 {
-   /* monid, Rw,Gw,Bw, Rs,Gs,Bs, Aw,As,Alpha, swap, yuv */
+   /* Rw,Gw,Bw, Rs,Gs,Bs, Aw,As,Avalue, swap */
    if (pix_bytes == 2)
-      alloc_colors64k (0, 5, 6, 5, 11, 5, 0, 0, 0, 0, 0, false);
+      alloc_colors64k (5, 6, 5, 11, 5, 0, 0, 0, 0, 0);
    else
-      alloc_colors64k (0, 8, 8, 8, 16, 8, 0, 0, 0, 0, 0, false);
+      alloc_colors64k (8, 8, 8, 16, 8, 0, 0, 0, 0, 0);
 
    return 1;
 }
@@ -918,58 +744,28 @@ void gfx_default_options(struct uae_prefs *p)
 {
 }
 
-int mousehack_allowed (void)
-{
-   return 0;
-}
-
-int debuggable (void)
-{
-   return 0;
-}
-
-void screenshot (int monid, int type, int f)
+void screenshot (int type, int f)
 {
 }
 
-void toggle_fullscreen(int monid, int mode)
+void toggle_fullscreen(int mode)
 {
 }
 
 int check_prefs_changed_gfx (void)
 {
-   int changed = 0;
-
-   if (!config_changed && !display_change_requested)
+   if (prefs_changed)
+      prefs_changed = 0;
+   else
       return 0;
 
-   if (gfxvidinfo->drawbuffer.width_allocated  != defaultw ||
-       gfxvidinfo->drawbuffer.height_allocated != defaulth)
-   {
-      changed = 1;
-      changed_prefs.gfx_monitor[0].gfx_size_win.width  = defaultw;
-      changed_prefs.gfx_monitor[0].gfx_size_win.height = defaulth;
+   changed_prefs.gfx_size_win.width    = defaultw;
+   changed_prefs.gfx_size_win.height   = defaulth;
 
-      gfxvidinfo->drawbuffer.width_allocated  = defaultw;
-      gfxvidinfo->drawbuffer.height_allocated = defaulth;
-      gfxvidinfo->drawbuffer.outwidth         = defaultw;
-      gfxvidinfo->drawbuffer.outheight        = defaulth;
-      gfxvidinfo->drawbuffer.rowbytes         = gfxvidinfo->drawbuffer.width_allocated * gfxvidinfo->drawbuffer.pixbytes;
-
-#if 0
-   printf("%s: %dx%d, res=%d vres=%d\n", __func__,
-         changed_prefs.gfx_monitor[0].gfx_size_win.width,
-         changed_prefs.gfx_monitor[0].gfx_size_win.height,
-         changed_prefs.gfx_resolution,
-         changed_prefs.gfx_vresolution);
-#endif
-   }
-
-   if (currprefs.gfx_monitor[0].gfx_size_win.width   != changed_prefs.gfx_monitor[0].gfx_size_win.width)
-       currprefs.gfx_monitor[0].gfx_size_win.width    = changed_prefs.gfx_monitor[0].gfx_size_win.width;
-   if (currprefs.gfx_monitor[0].gfx_size_win.height  != changed_prefs.gfx_monitor[0].gfx_size_win.height)
-       currprefs.gfx_monitor[0].gfx_size_win.height   = changed_prefs.gfx_monitor[0].gfx_size_win.height;
-
+   if (currprefs.gfx_size_win.width   != changed_prefs.gfx_size_win.width)
+       currprefs.gfx_size_win.width    = changed_prefs.gfx_size_win.width;
+   if (currprefs.gfx_size_win.height  != changed_prefs.gfx_size_win.height)
+       currprefs.gfx_size_win.height   = changed_prefs.gfx_size_win.height;
    if (currprefs.gfx_resolution       != changed_prefs.gfx_resolution)
        currprefs.gfx_resolution        = changed_prefs.gfx_resolution;
    if (currprefs.gfx_vresolution      != changed_prefs.gfx_vresolution)
@@ -985,155 +781,19 @@ int check_prefs_changed_gfx (void)
        currprefs.gfx_luminance         = changed_prefs.gfx_luminance;
        currprefs.gfx_contrast          = changed_prefs.gfx_contrast;
        currprefs.gfx_gamma             = changed_prefs.gfx_gamma;
-
-       changed = 1;
        graphics_setup();
    }
 
-   /* 2 = 16bit, 5 = 32bit */
-   currprefs.color_mode = (pix_bytes == 2) ? 2 : 5;
+   gfxvidinfo.width_allocated          = currprefs.gfx_size_win.width;
+   gfxvidinfo.height_allocated         = currprefs.gfx_size_win.height;
+   gfxvidinfo.rowbytes                 = gfxvidinfo.width_allocated * gfxvidinfo.pixbytes;
 
-   return changed;
-}
-
-static int target_get_display_scanline2(int displayindex)
-{
 #if 0
-	if (pD3DKMTGetScanLine) {
-		D3DKMT_GETSCANLINE sl = { 0 };
-		struct MultiDisplay *md = displayindex < 0 ? getdisplay(&currprefs, 0) : &Displays[displayindex];
-		if (!md->HasAdapterData)
-			return -11;
-		sl.VidPnSourceId = md->VidPnSourceId;
-		sl.hAdapter = md->AdapterHandle;
-		NTSTATUS status = pD3DKMTGetScanLine(&sl);
-		if (status == STATUS_SUCCESS) {
-			if (sl.InVerticalBlank)
-				return -1;
-			return sl.ScanLine;
-		} else {
-			if ((int)status > 0)
-				return -(int)status;
-			return status;
-		}
-		return -12;
-	} else if (D3D_getscanline) {
-		int scanline;
-		bool invblank;
-		if (D3D_getscanline(&scanline, &invblank)) {
-			if (invblank)
-				return -1;
-			return scanline;
-		}
-		return -14;
-	}
-	return -13;
+   printf("check_prefs_changed_gfx: %d:%d, res:%d vres:%d\n", changed_prefs.gfx_size_win.width, changed_prefs.gfx_size_win.height, changed_prefs.gfx_resolution, changed_prefs.gfx_vresolution);
 #endif
-}
-
-extern uae_u64 spincount;
-bool calculated_scanline = 1;
-
-int target_get_display_scanline(int displayindex)
-{
-#if 0
-	if (!scanlinecalibrating && calculated_scanline) {
-		static int lastline;
-		float diff = read_processor_time() - wait_vblank_timestamp;
-		if (diff < 0)
-			return -1;
-		int sl = (int)(diff * (vsync_activeheight + (vsync_totalheight - vsync_activeheight) / 10) * vsync_vblank / syncbase);
-		if (sl < 0)
-			sl = -1;
-		return sl;
-	} else {
-		static uae_u64 lastrdtsc;
-		static int lastvpos;
-		if (spincount == 0 || currprefs.m68k_speed >= 0) {
-			lastrdtsc = 0;
-			lastvpos = target_get_display_scanline2(displayindex);
-			return lastvpos;
-		}
-		uae_u64 v = __rdtsc();
-		if (lastrdtsc > v)
-			return lastvpos;
-		lastvpos = target_get_display_scanline2(displayindex);
-		lastrdtsc = __rdtsc() + spincount * 4;
-		return lastvpos;
-	}
-#endif
-}
-
-void vsync_clear(void)
-{
-#if 0
-	vsync_active = false;
-	if (waitvblankevent)
-		ResetEvent(waitvblankevent);
-#endif
-}
-
-int vsync_isdone(frame_time_t *dt)
-{
-#if 0
-	if (isvsync() == 0)
-		return -1;
-	if (waitvblankthread_mode <= 0)
-		return -2;
-	if (dt)
-		*dt = wait_vblank_timestamp;
-	return vsync_active ? 1 : 0;
-#else
    return 1;
-#endif
 }
 
-bool target_graphics_buffer_update(int monid, bool force)
-{
-    return true;
-}
-
-float target_getcurrentvblankrate(int monid)
-{
-    return retro_refresh;
-}
-
-void target_reset (void)
-{
-	clipboard_reset ();
-}
-
-void target_paste_to_keyboard (void) {}
-bool target_can_autoswitchdevice(void) { return false; }
-
-struct netdriverdata **target_ethernet_enumerate (void)
-{
-   return NULL;
-}
-
-static int deskhz;
-float target_adjust_vblank_hz(int monid, float hz)
-{
-#if 1
-	/* Reset this so that `compute_vsynctime()` produces correct sound clock */
-	lof_display = 1;
-	return hz;
-#else
-	struct AmigaMonitor *mon = &AMonitors[monid];
-	int maxrate;
-	if (!currprefs.lightboost_strobo)
-		return hz;
-	if (isfullscreen() > 0) {
-		maxrate = mon->currentmode.freq;
-	} else {
-		maxrate = deskhz;
-	}
-	double nhz = hz * 2.0;
-	if (nhz >= maxrate - 1 && nhz < maxrate + 1)
-		hz -= 0.5;
-	return hz;
-#endif
-}
 
 /***************************************************************
   Joystick functions
@@ -1174,10 +834,10 @@ static TCHAR *get_joystick_friendlyname (int joy)
 {
    switch (joy)
    {
-      default:
       case 0:
          return "RetroPad0";
          break;
+      default:
       case 1:
          return "RetroPad1";
          break;
@@ -1194,10 +854,10 @@ static char *get_joystick_uniquename (int joy)
 {
    switch (joy)
    {
-      default:
       case 0:
          return "RetroPad0";
          break;
+      default:
       case 1:
          return "RetroPad1";
          break;
@@ -1240,9 +900,9 @@ struct inputdevice_functions inputdevicefunc_joystick = {
    get_joystick_flags
 };
 
-int input_get_default_joystick (struct uae_input_device *uid, int num, int port, int af, int mode, bool gp, bool joymouseswap, bool default_osk)
+int input_get_default_joystick (struct uae_input_device *uid, int num, int port, int af, int mode, bool gp)
 {
-   if (is_cd32pad(0))
+   if (retro_devices[0] == RETRO_DEVICE_PUAE_CD32PAD)
    {
       uid[0].eventid[ID_AXIS_OFFSET + 0][0]   = INPUTEVENT_JOY2_HORIZ;
       uid[0].eventid[ID_AXIS_OFFSET + 1][0]   = INPUTEVENT_JOY2_VERT;
@@ -1262,9 +922,6 @@ int input_get_default_joystick (struct uae_input_device *uid, int num, int port,
       uid[0].eventid[ID_BUTTON_OFFSET + 1][0] = INPUTEVENT_JOY2_RIGHT;
       uid[0].eventid[ID_BUTTON_OFFSET + 2][0] = INPUTEVENT_JOY2_UP;
       uid[0].eventid[ID_BUTTON_OFFSET + 3][0] = INPUTEVENT_JOY2_DOWN;
-      uid[0].eventid[ID_BUTTON_OFFSET + 4][0] = -1;
-      uid[0].eventid[ID_BUTTON_OFFSET + 5][0] = -1;
-      uid[0].eventid[ID_BUTTON_OFFSET + 6][0] = -1;
    }
    else
    {
@@ -1272,14 +929,9 @@ int input_get_default_joystick (struct uae_input_device *uid, int num, int port,
       uid[0].eventid[ID_AXIS_OFFSET + 1][0]   = INPUTEVENT_JOY2_VERT;
       uid[0].eventid[ID_BUTTON_OFFSET + 0][0] = INPUTEVENT_JOY2_FIRE_BUTTON;
       uid[0].eventid[ID_BUTTON_OFFSET + 1][0] = INPUTEVENT_JOY2_2ND_BUTTON;
-      uid[0].eventid[ID_BUTTON_OFFSET + 2][0] = -1;
-      uid[0].eventid[ID_BUTTON_OFFSET + 3][0] = -1;
-      uid[0].eventid[ID_BUTTON_OFFSET + 4][0] = -1;
-      uid[0].eventid[ID_BUTTON_OFFSET + 5][0] = -1;
-      uid[0].eventid[ID_BUTTON_OFFSET + 6][0] = -1;
    }
 
-   if (is_cd32pad(1))
+   if (retro_devices[1] == RETRO_DEVICE_PUAE_CD32PAD)
    {
       uid[1].eventid[ID_AXIS_OFFSET + 0][0]   = INPUTEVENT_JOY1_HORIZ;
       uid[1].eventid[ID_AXIS_OFFSET + 1][0]   = INPUTEVENT_JOY1_VERT;
@@ -1299,9 +951,6 @@ int input_get_default_joystick (struct uae_input_device *uid, int num, int port,
       uid[1].eventid[ID_BUTTON_OFFSET + 1][0] = INPUTEVENT_JOY1_RIGHT;
       uid[1].eventid[ID_BUTTON_OFFSET + 2][0] = INPUTEVENT_JOY1_UP;
       uid[1].eventid[ID_BUTTON_OFFSET + 3][0] = INPUTEVENT_JOY1_DOWN;
-      uid[1].eventid[ID_BUTTON_OFFSET + 4][0] = -1;
-      uid[1].eventid[ID_BUTTON_OFFSET + 5][0] = -1;
-      uid[1].eventid[ID_BUTTON_OFFSET + 6][0] = -1;
    }
    else
    {
@@ -1311,11 +960,6 @@ int input_get_default_joystick (struct uae_input_device *uid, int num, int port,
       uid[1].eventid[ID_AXIS_OFFSET + 3][0]   = INPUTEVENT_JOY1_VERT_POT;
       uid[1].eventid[ID_BUTTON_OFFSET + 0][0] = INPUTEVENT_JOY1_FIRE_BUTTON;
       uid[1].eventid[ID_BUTTON_OFFSET + 1][0] = INPUTEVENT_JOY1_2ND_BUTTON;
-      uid[1].eventid[ID_BUTTON_OFFSET + 2][0] = -1;
-      uid[1].eventid[ID_BUTTON_OFFSET + 3][0] = -1;
-      uid[1].eventid[ID_BUTTON_OFFSET + 4][0] = -1;
-      uid[1].eventid[ID_BUTTON_OFFSET + 5][0] = -1;
-      uid[1].eventid[ID_BUTTON_OFFSET + 6][0] = -1;
    }
 
    uid[2].eventid[ID_AXIS_OFFSET + 0][0]   = INPUTEVENT_PAR_JOY1_HORIZ;
@@ -1340,7 +984,7 @@ int input_get_default_joystick (struct uae_input_device *uid, int num, int port,
    return 1;
 }
 
-int input_get_default_joystick_analog (struct uae_input_device *uid, int num, int port, int af, bool gp, bool joymouseswap, bool default_osk)
+int input_get_default_joystick_analog (struct uae_input_device *uid, int num, int port, int af, bool gp)
 {
    uid[num].eventid[ID_AXIS_OFFSET + 0][0] = port ? INPUTEVENT_JOY2_HORIZ_POT : INPUTEVENT_JOY1_HORIZ_POT;
    uid[num].eventid[ID_AXIS_OFFSET + 1][0] = port ? INPUTEVENT_JOY2_VERT_POT : INPUTEVENT_JOY1_VERT_POT;
@@ -1348,15 +992,10 @@ int input_get_default_joystick_analog (struct uae_input_device *uid, int num, in
    uid[num].eventid[ID_BUTTON_OFFSET + 1][0] = port ? INPUTEVENT_JOY2_RIGHT : INPUTEVENT_JOY1_RIGHT;
    uid[num].eventid[ID_BUTTON_OFFSET + 2][0] = port ? INPUTEVENT_JOY2_UP : INPUTEVENT_JOY1_UP;
    uid[num].eventid[ID_BUTTON_OFFSET + 3][0] = port ? INPUTEVENT_JOY2_DOWN : INPUTEVENT_JOY1_DOWN;
-   uid[num].eventid[ID_BUTTON_OFFSET + 4][0] = -1;
-   uid[num].eventid[ID_BUTTON_OFFSET + 5][0] = -1;
-   uid[num].eventid[ID_BUTTON_OFFSET + 6][0] = -1;
-
    return 0;
 }
 
-void target_inputdevice_unacquire(bool full) {}
-void target_inputdevice_acquire(void) {}
+
 
 /***************************************************************
   Mouse functions
@@ -1468,7 +1107,7 @@ struct inputdevice_functions inputdevicefunc_mouse = {
    get_mouse_flags
 };
 
-int input_get_default_mouse (struct uae_input_device *uid, int num, int port, int af, bool gp, bool wheel, bool joymouseswap)
+int input_get_default_mouse (struct uae_input_device *uid, int num, int port, int af, bool gp, bool wheel)
 {
    uid[0].eventid[ID_AXIS_OFFSET + 0][0]   = INPUTEVENT_MOUSE1_HORIZ;
    uid[0].eventid[ID_AXIS_OFFSET + 1][0]   = INPUTEVENT_MOUSE1_VERT;
@@ -1488,18 +1127,11 @@ int input_get_default_mouse (struct uae_input_device *uid, int num, int port, in
    return 0;
 }
 
-int input_get_default_lightpen (struct uae_input_device *uid, int num, int port, int af, bool gp, bool joymouseswap, int submode)
+int input_get_default_lightpen (struct uae_input_device *uid, int num, int port, int af, bool gp)
 {
-   uid[0].eventid[ID_AXIS_OFFSET + 0][0]   = INPUTEVENT_LIGHTPEN_HORIZ;
-   uid[0].eventid[ID_AXIS_OFFSET + 1][0]   = INPUTEVENT_LIGHTPEN_VERT;
-   uid[0].eventid[ID_BUTTON_OFFSET + 0][0] = (submode) ? INPUTEVENT_JOY1_LEFT : INPUTEVENT_JOY1_3RD_BUTTON;
-
-   uid[1].eventid[ID_AXIS_OFFSET + 0][0]   = INPUTEVENT_LIGHTPEN_HORIZ2;
-   uid[1].eventid[ID_AXIS_OFFSET + 1][0]   = INPUTEVENT_LIGHTPEN_VERT2;
-   uid[1].eventid[ID_BUTTON_OFFSET + 0][0] = (submode) ? INPUTEVENT_JOY2_LEFT : INPUTEVENT_JOY2_3RD_BUTTON;
-
-   uid[0].enabled = 1;
-   uid[1].enabled = 1;
+   uid[num].eventid[ID_AXIS_OFFSET + 0][0] = INPUTEVENT_LIGHTPEN_HORIZ;
+   uid[num].eventid[ID_AXIS_OFFSET + 1][0] = INPUTEVENT_LIGHTPEN_VERT;
+   uid[num].eventid[ID_BUTTON_OFFSET + 0][0] = port ? INPUTEVENT_JOY2_3RD_BUTTON : INPUTEVENT_JOY1_3RD_BUTTON;
    return 0;
 }
 
@@ -1622,8 +1254,6 @@ void keyboard_settrans (void)
 #endif
 }
 
-bool target_osd_keyboard(int show) { return false; }
-void target_osk_control(int x, int y, int button, int buttonstate) { }
 
 /********************************************************************
     Misc fuctions
@@ -1655,11 +1285,6 @@ void uae_pause (void)
 
 void uae_resume (void)
 {
-}
-
-bool isguiactive(void)
-{
-   return 0;
 }
 
 
@@ -1696,93 +1321,40 @@ int qstrcmp(const void *a, const void *b)
    return sensible_strcmp(pa, pb);
 }
 
-int retro_remove(const char *path)
-{
-#if defined(_WIN32) && !defined(LEGACY_WIN32)
-   wchar_t *pathW = utf8_to_utf16_string_alloc(path);
-
-   if (pathW)
-   {
-      if (DeleteFileW(pathW))
-      {
-         free(pathW);
-         return 0;
-      }
-      free(pathW);
-      return -1;
-   }
-
-   return DeleteFile(path);
-#else
-   return remove(path);
-#endif
-}
-
-int retro_rmdir(const char *path)
-{
-#if defined(_WIN32) && !defined(LEGACY_WIN32)
-   wchar_t *pathW = utf8_to_utf16_string_alloc(path);
-
-   if (pathW)
-   {
-      if (RemoveDirectoryW(pathW))
-      {
-         free(pathW);
-         return 0;
-      }
-      free(pathW);
-      return -1;
-   }
-
-   return RemoveDirectory(path);
-#else
-   return rmdir(path);
-#endif
-}
-
-int remove_recurse(const char *path)
+void remove_recurse(const char *path)
 {
    struct dirent *dirp;
    char filename[RETRO_PATH_MAX];
-   int ret   = 0;
-   RDIR *dir = retro_opendir(path);
+   DIR *dir = opendir(path);
    if (dir == NULL)
-      return -1;
+      return;
 
-   while (retro_readdir(dir))
+   while ((dirp = readdir(dir)) != NULL)
    {
-      const char *name = retro_dirent_get_name(dir);
-
-      if (name[0] == '.')
+      if (dirp->d_name[0] == '.')
          continue;
 
-      snprintf(filename, sizeof(filename), "%s%s%s", path, DIR_SEP_STR, name);
+      sprintf(filename, "%s%s%s", path, DIR_SEP_STR, dirp->d_name);
+      log_cb(RETRO_LOG_INFO, "Clean: %s\n", filename);
 
       if (path_is_directory(filename))
-         ret = remove_recurse(filename);
+         remove_recurse(filename);
       else
-         ret = retro_remove(filename);
-
-      if (!ret)
-         log_cb(RETRO_LOG_INFO, "Clean: %s\n", filename);
-      else
-         log_cb(RETRO_LOG_INFO, "Clean fail: %s\n", filename);
+         remove(filename);
    }
 
-   retro_closedir(dir);
+   closedir(dir);
 
    /* Leave the root directory for RAM disk usage */
    if (strcmp(retro_temp_directory, path))
-      retro_rmdir(path);
-
-   return ret;
+      rmdir(path);
 }
 
 int fcopy(const char *src, const char *dst)
 {
-   char buf[256] = {0};
-   size_t n      = 0;
-   int ret       = 0;
+   char buf[BUFSIZ] = {0};
+   size_t n         = 0;
+   int ret          = 0;
 
    char path_dst[RETRO_PATH_MAX] = {0};
    snprintf(path_dst, sizeof(path_dst), "%s", dst);
@@ -1825,10 +1397,10 @@ close:
 
 int fcmp(const char *src, const char *dst)
 {
-   char buf_src[256] = {0};
-   char buf_dst[256] = {0};
-   size_t n          = 0;
-   int ret           = 0;
+   char buf_src[BUFSIZ] = {0};
+   char buf_dst[BUFSIZ] = {0};
+   size_t n             = 0;
+   int ret              = 0;
 
    FILE *fp_src = fopen(src, "rb");
    FILE *fp_dst = fopen(dst, "rb");
@@ -1941,111 +1513,54 @@ bool strendswith(const char* str, const char* end)
 }
 
 /* zlib */
-#define BUFLEN 16384
-
-void gz_compress(const char *in, const char *out)
+void gz_uncompress(gzFile in, FILE *out)
 {
-   char buf[BUFLEN];
-   size_t len;
-   int err;
-   FILE *in_fp;
-   gzFile out_fp;
-
-   out_fp = gzopen(out, "wb");
-   if (out_fp == NULL)
-      return;
-
-   in_fp = fopen(in, "rb");
-   if (in_fp == NULL)
-      return;
-
-   for (;;)
-   {
-      len = fread(buf, 1, sizeof(buf), in_fp);
-      int buflen;
-
-      if (len <= 0)
-      {
-         if (len < 0)
-            log_cb(RETRO_LOG_ERROR, "GZip: Read error\n");
-         break;
-      }
-
-      buflen = gzwrite(out_fp, buf, len);
-      if (buflen != len)
-         log_cb(RETRO_LOG_ERROR, "GZip: %s\n", gzerror(out_fp, &err));
-   }
-   fclose(in_fp);
-
-   if (gzclose(out_fp) == Z_OK)
-      log_cb(RETRO_LOG_INFO, "GZip: %s\n", out);
-}
-
-void gz_uncompress(const char *in, const char *out)
-{
-   char gzbuf[BUFLEN];
+   char gzbuf[16384];
    int len;
    int err;
 
-   struct gzFile_s *in_fp;
-   if ((in_fp = gzopen(in, "r")))
+   for (;;)
    {
-      FILE *out_fp;
-      if ((out_fp = fopen(out, "wb")))
-      {
-         for (;;)
-         {
-            len = gzread(in_fp, gzbuf, sizeof(gzbuf));
-            if (len <= 0)
-            {
-               if (len < 0)
-                  log_cb(RETRO_LOG_ERROR, "GUnzip: %s\n", gzerror(in_fp, &err));
-               break;
-            }
-
-            if (fwrite(gzbuf, 1, len, out_fp) != len)
-               log_cb(RETRO_LOG_ERROR, "GUnzip: Write error\n");
-         }
-         fclose(out_fp);
-
-         if (!len)
-            log_cb(RETRO_LOG_INFO, "GUnzip: %s\n", out);
-      }
-      gzclose(in_fp);
+      len = gzread(in, gzbuf, sizeof(gzbuf));
+      if (len < 0)
+         log_cb(RETRO_LOG_ERROR, "%s", gzerror(in, &err));
+      if (len == 0)
+         break;
+      if ((int)fwrite(gzbuf, 1, (unsigned)len, out) != len)
+         log_cb(RETRO_LOG_ERROR, "GZ write error!\n");
    }
 }
 
-void zip_uncompress(const char *in, const char *out, char *lastfile)
+void zip_uncompress(char *in, char *out, char *lastfile)
 {
-   uLong i;
-   unz_global_info gi;
+   unzFile uf = NULL;
+   char *in_local = NULL;
+   in_local = utf8_to_local_string_alloc(in);
 
-   unzFile uf           = NULL;
-   char *in_local       = NULL;
-   const char* password = NULL;
-   int size_buf         = 8192;
-   int err;
-
-   in_local             = utf8_to_local_string_alloc(in);
-   uf                   = unzOpen(in_local);
+   uf = unzOpen(in_local);
 
    free(in_local);
    in_local = NULL;
 
+   uLong i;
+   unz_global_info gi;
+   int err;
    err = unzGetGlobalInfo (uf, &gi);
+
+   const char* password = NULL;
+   int size_buf = 8192;
 
    for (i = 0; i < gi.number_entry; i++)
    {
       char filename_inzip[256];
       char filename_withpath[512];
+      filename_inzip[0] = '\0';
+      filename_withpath[0] = '\0';
       char* filename_withoutpath;
       char* p;
       unz_file_info file_info;
       FILE *fout = NULL;
       void* buf;
-
-      filename_inzip[0]    = '\0';
-      filename_withpath[0] = '\0';
 
       buf = (void*)malloc(size_buf);
       if (buf == NULL)
@@ -2065,7 +1580,7 @@ void zip_uncompress(const char *in, const char *out, char *lastfile)
       while ((*p) != '\0')
       {
          if (((*p) == '/') || ((*p) == '\\'))
-            filename_withoutpath = p + 1;
+            filename_withoutpath = p+1;
          p++;
       }
 
@@ -2077,20 +1592,13 @@ void zip_uncompress(const char *in, const char *out, char *lastfile)
       else if (!path_is_valid(filename_withpath))
       {
          char* write_filename;
-         unsigned skip = 0;
-         unsigned x    = 0;
+         int skip = 0;
+         unsigned x = 0;
 
-#ifdef USE_LIBRETRO_VFS
          write_filename = strdup(filename_withpath);
-#else
-         write_filename = local_to_utf8_string_alloc(filename_withpath);
-#endif
-
-#if 0
          /* Replace non-ascii chars with underscore */
          for (x = 128; x < 256; x++)
             string_replace_all_chars(write_filename, x, '_');
-#endif
 
          err = unzOpenCurrentFilePassword(uf, password);
          if (err != UNZ_OK)
@@ -2145,7 +1653,7 @@ void zip_uncompress(const char *in, const char *out, char *lastfile)
 
       free(buf);
 
-      if ((i + 1) < gi.number_entry)
+      if ((i+1) < gi.number_entry)
       {
          err = unzGoToNextFile(uf);
          if (err != UNZ_OK)
@@ -2205,7 +1713,7 @@ static void *sevenzip_stream_alloc_tmp_impl(ISzAllocPtr p, size_t size)
    return malloc(size);
 }
 
-void sevenzip_uncompress(const char *in, const char *out, char *lastfile)
+void sevenzip_uncompress(char *in, char *out, char *lastfile)
 {
    CFileInStream archiveStream;
    CLookToRead2 lookStream;
@@ -2322,11 +1830,9 @@ void sevenzip_uncompress(const char *in, const char *out, char *lastfile)
          if (dc_get_image_type(output_path) == DC_IMAGE_TYPE_FLOPPY && lastfile != NULL)
             snprintf(lastfile, RETRO_PATH_MAX, "%s", path_basename(output_path));
 
-#if 0
          /* Replace non-ascii chars with underscore */
          for (x = 128; x < 256; x++)
             string_replace_all_chars(output_path, x, '_');
-#endif
 
          for (j = 0; output_path[j] != 0; j++)
          {
@@ -2463,12 +1969,12 @@ int make_hdf (char *hdf_path, char *hdf_size, char *device_name)
     }
 
     if (size <= 0) {
-        printf ("Invalid size\n");
+        fprintf (stderr, "Invalid size\n");
         exit (EXIT_FAILURE);
     }
 
     if ((size >= (1LL << 31)) && (sizeof (off_t) < sizeof (uae_u64))) {
-        printf ("Specified size too large (2GB file size is maximum).\n");
+        fprintf (stderr, "Specified size too large (2GB file size is maximum).\n");
         exit (EXIT_FAILURE);
     }
 
@@ -2476,7 +1982,7 @@ int make_hdf (char *hdf_path, char *hdf_size, char *device_name)
 
     /* We don't want more than (2^32)-1 blocks */
     if (num_blocks >= (1LL << 32)) {
-        printf ("Specified size too large (too many blocks).\n");
+        fprintf (stderr, "Specified size too large (too many blocks).\n");
         exit (EXIT_FAILURE);
     }
 
@@ -2495,7 +2001,7 @@ int make_hdf (char *hdf_path, char *hdf_size, char *device_name)
     cylinders = num_blocks / (blocks_per_track * surfaces);
 
     if (cylinders == 0) {
-        printf ("Specified size is too small.\n");
+        fprintf (stderr, "Specified size is too small.\n");
         exit (EXIT_FAILURE);
     }
 
@@ -2631,7 +2137,13 @@ UINT32 logical_to_chd_lba(cdrom_file *file, UINT32 loglba, UINT32 *tracknum)
 	{
 		if (loglba < file->cdtoc.tracks[track + 1].logframeofs)
 		{
-			/* convert to physical and proceed */
+			// is this a no-pregap-data track?  compensate for the logical offset pointing to the "wrong" sector.
+			if ((file->cdtoc.tracks[track].pgdatasize == 0) && (loglba > file->cdtoc.tracks[track].pregap))
+			{
+				loglba -= file->cdtoc.tracks[track].pregap;
+			}
+
+			// convert to physical and proceed
 			physlba = file->cdtoc.tracks[track].physframeofs + (loglba - file->cdtoc.tracks[track].logframeofs);
 			chdlba = physlba - file->cdtoc.tracks[track].physframeofs + file->cdtoc.tracks[track].chdframeofs;
 			*tracknum = track;
@@ -2642,20 +2154,97 @@ UINT32 logical_to_chd_lba(cdrom_file *file, UINT32 loglba, UINT32 *tracknum)
 	return loglba;
 }
 
-/*-------------------------------------------------
-    constructor - "open" a CD-ROM file from an
-    already-opened CHD file
--------------------------------------------------*/
+UINT32 cdrom_read_data(cdrom_file *file, UINT32 lbasector, void *buffer, UINT32 datatype, bool phys)
+{
+	if (file == NULL)
+		return 0;
 
-/**
- * @fn  cdrom_file *cdrom_open(chd_file *chd)
- *
- * @brief   Queries if a given cdrom open.
- *
- * @param [in,out]  chd If non-null, the chd.
- *
- * @return  null if it fails, else a cdrom_file*.
- */
+	// compute CHD sector and tracknumber
+	UINT32 tracknum = 0;
+	UINT32 chdsector;
+
+	if (phys)
+	{
+		chdsector = physical_to_chd_lba(file, lbasector, &tracknum);
+	}
+	else
+	{
+		chdsector = logical_to_chd_lba(file, lbasector, &tracknum);
+	}
+
+	/* copy out the requested sector */
+	UINT32 tracktype = file->cdtoc.tracks[tracknum].trktype;
+
+	if ((datatype == tracktype) || (datatype == CD_TRACK_RAW_DONTCARE))
+	{
+		return (read_partial_sector(file, buffer, lbasector, chdsector, tracknum, 0, file->cdtoc.tracks[tracknum].datasize) == CHDERR_NONE);
+	}
+	else
+	{
+		/* return 2048 bytes of mode 1 data from a 2352 byte mode 1 raw sector */
+		if ((datatype == CD_TRACK_MODE1) && (tracktype == CD_TRACK_MODE1_RAW))
+		{
+			return (read_partial_sector(file, buffer, lbasector, chdsector, tracknum, 16, 2048) == CHDERR_NONE);
+		}
+
+		/* return 2352 byte mode 1 raw sector from 2048 bytes of mode 1 data */
+		if ((datatype == CD_TRACK_MODE1_RAW) && (tracktype == CD_TRACK_MODE1))
+		{
+			UINT8 *bufptr = (UINT8 *)buffer;
+			UINT32 msf = lba_to_msf(lbasector);
+
+			static const UINT8 syncbytes[12] = {0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00};
+			memcpy(bufptr, syncbytes, 12);
+			bufptr[12] = msf>>16;
+			bufptr[13] = msf>>8;
+			bufptr[14] = msf&0xff;
+			bufptr[15] = 1; // mode 1
+			write_log(("CDROM: promotion of mode1/form1 sector to mode1 raw is not complete!\n"));
+			return (read_partial_sector(file, bufptr+16, lbasector, chdsector, tracknum, 0, 2048) == CHDERR_NONE);
+		}
+
+		/* return 2048 bytes of mode 1 data from a mode2 form1 or raw sector */
+		if ((datatype == CD_TRACK_MODE1) && ((tracktype == CD_TRACK_MODE2_FORM1)||(tracktype == CD_TRACK_MODE2_RAW)))
+		{
+			return (read_partial_sector(file, buffer, lbasector, chdsector, tracknum, 24, 2048) == CHDERR_NONE);
+		}
+
+		/* return mode 2 2336 byte data from a 2352 byte mode 1 or 2 raw sector (skip the header) */
+		if ((datatype == CD_TRACK_MODE2) && ((tracktype == CD_TRACK_MODE1_RAW) || (tracktype == CD_TRACK_MODE2_RAW)))
+		{
+			return (read_partial_sector(file, buffer, lbasector, chdsector, tracknum, 16, 2336) == CHDERR_NONE);
+		}
+
+		write_log("CDROM: Conversion from type %d to type %d not supported!\n", tracktype, datatype);
+		return 0;
+	}
+}
+
+UINT32 cdrom_read_subcode(cdrom_file *file, UINT32 lbasector, void *buffer, bool phys)
+{
+	if (file == NULL)
+		return ~0;
+
+	// compute CHD sector and tracknumber
+	UINT32 tracknum = 0;
+	UINT32 chdsector;
+
+	if (phys)
+	{
+		chdsector = physical_to_chd_lba(file, lbasector, &tracknum);
+	}
+	else
+	{
+		chdsector = logical_to_chd_lba(file, lbasector, &tracknum);
+	}
+
+	if (file->cdtoc.tracks[tracknum].subsize == 0)
+		return 0;
+
+	// read the data
+	chd_error err = read_partial_sector(file, buffer, lbasector, chdsector, tracknum, file->cdtoc.tracks[tracknum].datasize, file->cdtoc.tracks[tracknum].subsize);
+	return (err == CHDERR_NONE);
+}
 
 cdrom_file *cdrom_open(chd_file *chd)
 {
@@ -2675,7 +2264,7 @@ cdrom_file *cdrom_open(chd_file *chd)
 		return NULL;
 
 	/* allocate memory for the CD-ROM file */
-	file = xmalloc(cdrom_file, sizeof(cdrom_file));
+	file = xmalloc(cdrom_file, 1);
 	if (file == NULL)
 		return NULL;
 
@@ -2700,40 +2289,27 @@ cdrom_file *cdrom_open(chd_file *chd)
 	physofs = chdofs = logofs = 0;
 	for (i = 0; i < file->cdtoc.numtrks; i++)
 	{
-		file->cdtoc.tracks[i].logframeofs = 0;
-
-		if (file->cdtoc.tracks[i].pgdatasize == 0)
-		{
-			// Anything that isn't cue.
-			// toc (cdrdao): Pregap data seems to be included at the end of previous track.
-			// START/PREGAP is only issued in special cases, for instance alongside ZERO commands.
-			// ZERO and SILENCE commands are supposed to generate additional data that's not included
-			// in the image directly, so the total logofs value must be offset to point to index 1.
-			logofs += file->cdtoc.tracks[i].pregap;
-		}
-		else
-		{
-			// cues: Pregap is the difference between index 0 and index 1 unless PREGAP is specified.
-			// The data is assumed to be in the bin and not generated separately, so the pregap should
-			// only be added to the current track's lba to offset it to index 1.
-			file->cdtoc.tracks[i].logframeofs = file->cdtoc.tracks[i].pregap;
-		}
-
 		file->cdtoc.tracks[i].physframeofs = physofs;
 		file->cdtoc.tracks[i].chdframeofs = chdofs;
-		file->cdtoc.tracks[i].logframeofs += logofs;
-		file->cdtoc.tracks[i].logframes = file->cdtoc.tracks[i].frames - file->cdtoc.tracks[i].pregap;
+		file->cdtoc.tracks[i].logframeofs = logofs;
+
+		// if the pregap sectors aren't in the track, add them to the track's logical length
+		if (file->cdtoc.tracks[i].pgdatasize == 0)
+		{
+			logofs += file->cdtoc.tracks[i].pregap;
+		}
 
 		// postgap counts against the next track
 		logofs += file->cdtoc.tracks[i].postgap;
 
 		physofs += file->cdtoc.tracks[i].frames;
+		physofs += file->cdtoc.tracks[i].extraframes;
 		chdofs  += file->cdtoc.tracks[i].frames;
 		chdofs  += file->cdtoc.tracks[i].extraframes;
 		logofs  += file->cdtoc.tracks[i].frames;
 
 #if 0
-        printf("Track %02d is format %d subtype %d datasize %d subsize %d frames %d extraframes %d pregap %d pgmode %d presize %d postgap %d logofs %d physofs %d chdofs %d logframes %d\n", i+1,
+        printf("Track %02d is format %d subtype %d datasize %d subsize %d frames %d extraframes %d pregap %d pgmode %d presize %d postgap %d logofs %d physofs %d chdofs %d\n", i+1,
             file->cdtoc.tracks[i].trktype,
             file->cdtoc.tracks[i].subtype,
             file->cdtoc.tracks[i].datasize,
@@ -2746,8 +2322,7 @@ cdrom_file *cdrom_open(chd_file *chd)
             file->cdtoc.tracks[i].postgap,
             file->cdtoc.tracks[i].logframeofs,
             file->cdtoc.tracks[i].physframeofs,
-            file->cdtoc.tracks[i].chdframeofs,
-            file->cdtoc.tracks[i].logframes);
+            file->cdtoc.tracks[i].chdframeofs);
 #endif
 	}
 
@@ -2755,7 +2330,6 @@ cdrom_file *cdrom_open(chd_file *chd)
 	file->cdtoc.tracks[i].physframeofs = physofs;
 	file->cdtoc.tracks[i].logframeofs = logofs;
 	file->cdtoc.tracks[i].chdframeofs = chdofs;
-	file->cdtoc.tracks[i].logframes = 0;
 
 	return file;
 }
@@ -2782,24 +2356,109 @@ void cdrom_close(cdrom_file *file)
 	file = NULL;
 }
 
+static const UINT8 V34_MAP_ENTRY_FLAG_TYPE_MASK = 0x0f;     // what type of hunk
+static const UINT8 V34_MAP_ENTRY_FLAG_NO_CRC = 0x10;        // no CRC is present
 
+chd_error chd_hunk_info(chd_file *cf, UINT32 hunknum, chd_codec_type *compressor, UINT32 *compbytes)
+{
+	// error if invalid
+	if (hunknum >= cf->header.hunkcount)
+		return CHDERR_HUNK_OUT_OF_RANGE;
+
+	// get the map pointer
+	UINT8 *rawmap;
+	switch (cf->header.version)
+	{
+		// v3/v4 map entries
+		case 3:
+		case 4:
+			rawmap = cf->header.rawmap + 16 * hunknum;
+			switch (rawmap[15] & V34_MAP_ENTRY_FLAG_TYPE_MASK)
+			{
+				case V34_MAP_ENTRY_TYPE_COMPRESSED:
+					*compressor = CHD_CODEC_ZLIB;
+					*compbytes = be_read(&rawmap[12], 2) + (rawmap[14] << 16);
+					break;
+
+				case V34_MAP_ENTRY_TYPE_UNCOMPRESSED:
+					*compressor = CHD_CODEC_NONE;
+					*compbytes = cf->header.hunkbytes;
+					break;
+
+				case V34_MAP_ENTRY_TYPE_MINI:
+					*compressor = CHD_CODEC_MINI;
+					*compbytes = 0;
+					break;
+
+				case V34_MAP_ENTRY_TYPE_SELF_HUNK:
+					*compressor = CHD_CODEC_SELF;
+					*compbytes = 0;
+					break;
+
+				case V34_MAP_ENTRY_TYPE_PARENT_HUNK:
+					*compressor = CHD_CODEC_PARENT;
+					*compbytes = 0;
+					break;
+			}
+			break;
+
+		// v5 map entries
+		case 5:
+			rawmap = cf->header.rawmap + cf->header.mapentrybytes * hunknum;
+
+			// uncompressed case
+			if (cf->header.compression[0] == CHD_CODEC_NONE)
+			{
+				if (be_read(&rawmap[0], 4) == 0)
+				{
+					*compressor = CHD_CODEC_PARENT;
+					*compbytes = 0;
+				}
+				else
+				{
+					*compressor = CHD_CODEC_NONE;
+					*compbytes = cf->header.hunkbytes;
+				}
+				break;
+			}
+
+			// compressed case
+			switch (rawmap[0])
+			{
+				case COMPRESSION_TYPE_0:
+				case COMPRESSION_TYPE_1:
+				case COMPRESSION_TYPE_2:
+				case COMPRESSION_TYPE_3:
+					*compressor = cf->header.compression[rawmap[0]];
+					*compbytes = be_read(&rawmap[1], 3);
+					break;
+
+				case COMPRESSION_NONE:
+					*compressor = CHD_CODEC_NONE;
+					*compbytes = cf->header.hunkbytes;
+					break;
+
+				case COMPRESSION_SELF:
+					*compressor = CHD_CODEC_SELF;
+					*compbytes = 0;
+					break;
+
+				case COMPRESSION_PARENT:
+					*compressor = CHD_CODEC_PARENT;
+					*compbytes = 0;
+					break;
+			}
+			break;
+	}
+	return CHDERR_NONE;
+}
+
+//-------------------------------------------------
+//  read_bytes - read from the CHD at a byte level,
+//  using the cache to handle partial hunks
+//-------------------------------------------------
 UINT8 m_cache[CD_FRAME_SIZE*CD_FRAMES_PER_HUNK*2] = {0};
 UINT32 m_cachehunk = 0;
-
-/**
- * @fn  std::error_condition chd_file::read_bytes(uint64_t offset, void *buffer, uint32_t bytes)
- *
- * @brief   -------------------------------------------------
- *            read_bytes - read from the CHD at a byte level, using the cache to handle partial
- *            hunks
- *          -------------------------------------------------.
- *
- * @param   offset          The offset.
- * @param [in,out]  buffer  If non-null, the buffer.
- * @param   bytes           The bytes.
- *
- * @return  The bytes.
- */
 
 chd_error chd_read_bytes(chd_file *chd, UINT64 offset, void *buffer, UINT32 bytes)
 {
@@ -2841,54 +2500,27 @@ chd_error chd_read_bytes(chd_file *chd, UINT64 offset, void *buffer, UINT32 byte
 	return CHDERR_NONE;
 }
 
-/***************************************************************************
-    CORE READ ACCESS
-***************************************************************************/
-
-/**
- * @fn  std::error_condition read_partial_sector(void *dest, uint32_t lbasector, uint32_t chdsector, uint32_t tracknum, uint32_t startoffs, uint32_t length, bool phys)
- *
- * @brief   Reads partial sector.
- *
- * @param [in,out]  dest    If non-null, destination for the.
- * @param   lbasector       The lbasector.
- * @param   chdsector       The chdsector.
- * @param   tracknum        The tracknum.
- * @param   startoffs       The startoffs.
- * @param   length          The length.
- * @param   phys            true to physical.
- *
- * @return  The partial sector.
- */
-
-chd_error read_partial_sector(cdrom_file *file, void *dest, UINT32 lbasector, UINT32 chdsector, UINT32 tracknum, UINT32 startoffs, UINT32 length, bool phys)
+chd_error read_partial_sector(cdrom_file *file, void *dest, UINT32 lbasector, UINT32 chdsector, UINT32 tracknum, UINT32 startoffs, UINT32 length)
 {
 	chd_error result = CHDERR_NONE;
 	bool needswap = false;
 
 	// if this is pregap info that isn't actually in the file, just return blank data
-	if (!phys)
+	if ((file->cdtoc.tracks[tracknum].pgdatasize == 0) && (lbasector < (file->cdtoc.tracks[tracknum].logframeofs + file->cdtoc.tracks[tracknum].pregap)))
 	{
-		if ((file->cdtoc.tracks[tracknum].pgdatasize == 0) && (lbasector < file->cdtoc.tracks[tracknum].logframeofs))
-		{
-			write_log("PG missing sector: LBA %d, trklog %d\n", lbasector, file->cdtoc.tracks[tracknum].logframeofs);
-			memset(dest, 0, length);
-			return result;
-		}
+        write_log("PG missing sector: LBA %d, trklog %d\n", lbasector, file->cdtoc.tracks[tracknum].logframeofs);
+		memset(dest, 0, length);
+		return result;
 	}
 
 	// if a CHD, just read
 	if (file->chd != NULL)
 	{
-		if (!phys && file->cdtoc.tracks[tracknum].pgdatasize != 0)
-		{
-			// chdman (phys=true) relies on chdframeofs to point to index 0 instead of index 1 for extractcd.
-			// Actually playing CDs requires it to point to index 1 instead of index 0, so adjust the offset when phys=false.
-			chdsector += file->cdtoc.tracks[tracknum].pregap;
-		}
-
+#if 0
+		result = file->chd->read_bytes(UINT64(chdsector) * UINT64(CD_FRAME_SIZE) + startoffs, dest, length);
+#else
 		result = chd_read_bytes(file->chd, (UINT64)chdsector * (UINT64)CD_FRAME_SIZE + startoffs, dest, length);
-
+#endif
 		/* swap CDDA in the case of LE GDROMs */
 		if ((file->cdtoc.flags & CD_FLAG_GDROMLE) && (file->cdtoc.tracks[tracknum].trktype == CD_TRACK_AUDIO))
 			needswap = true;
@@ -2926,110 +2558,6 @@ chd_error read_partial_sector(cdrom_file *file, void *dest, UINT32 lbasector, UI
 		}
 	}
 	return result;
-}
-
-UINT32 cdrom_read_data(cdrom_file *file, UINT32 lbasector, void *buffer, UINT32 datatype, bool phys)
-{
-	// compute CHD sector and tracknumber
-	UINT32 tracknum = 0;
-	UINT32 chdsector;
-
-	if (file == NULL)
-		return 0;
-
-	if (phys)
-	{
-		chdsector = physical_to_chd_lba(file, lbasector, &tracknum);
-	}
-	else
-	{
-		chdsector = logical_to_chd_lba(file, lbasector, &tracknum);
-	}
-
-	/* copy out the requested sector */
-	UINT32 tracktype = file->cdtoc.tracks[tracknum].trktype;
-
-	if ((datatype == tracktype) || (datatype == CD_TRACK_RAW_DONTCARE))
-	{
-		return (read_partial_sector(file, buffer, lbasector, chdsector, tracknum, 0, file->cdtoc.tracks[tracknum].datasize, phys) == CHDERR_NONE);
-	}
-	else
-	{
-		/* return 2048 bytes of mode 1 data from a 2352 byte mode 1 raw sector */
-		if ((datatype == CD_TRACK_MODE1) && (tracktype == CD_TRACK_MODE1_RAW))
-		{
-			return (read_partial_sector(file, buffer, lbasector, chdsector, tracknum, 16, 2048, phys) == CHDERR_NONE);
-		}
-
-		/* return 2352 byte mode 1 raw sector from 2048 bytes of mode 1 data */
-		if ((datatype == CD_TRACK_MODE1_RAW) && (tracktype == CD_TRACK_MODE1))
-		{
-			UINT8 *bufptr = (UINT8 *)buffer;
-			UINT32 msf = lba_to_msf(lbasector);
-
-			static const UINT8 syncbytes[12] = {0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00};
-			memcpy(bufptr, syncbytes, 12);
-			bufptr[12] = msf>>16;
-			bufptr[13] = msf>>8;
-			bufptr[14] = msf&0xff;
-			bufptr[15] = 1; // mode 1
-			write_log(("CDROM: promotion of mode1/form1 sector to mode1 raw is not complete!\n"));
-			return (read_partial_sector(file, bufptr+16, lbasector, chdsector, tracknum, 0, 2048, phys) == CHDERR_NONE);
-		}
-
-		/* return 2048 bytes of mode 1 data from a mode2 form1 or raw sector */
-		if ((datatype == CD_TRACK_MODE1) && ((tracktype == CD_TRACK_MODE2_FORM1)||(tracktype == CD_TRACK_MODE2_RAW)))
-		{
-			return (read_partial_sector(file, buffer, lbasector, chdsector, tracknum, 24, 2048, phys) == CHDERR_NONE);
-		}
-
-		/* return 2048 bytes of mode 1 data from a mode2 form2 or XA sector */
-		if ((datatype == CD_TRACK_MODE1) && (tracktype == CD_TRACK_MODE2_FORM_MIX))
-		{
-			return (read_partial_sector(file, buffer, lbasector, chdsector, tracknum, 8, 2048, phys) == CHDERR_NONE);
-		}
-
-		/* return mode 2 2336 byte data from a 2352 byte mode 1 or 2 raw sector (skip the header) */
-		if ((datatype == CD_TRACK_MODE2) && ((tracktype == CD_TRACK_MODE1_RAW) || (tracktype == CD_TRACK_MODE2_RAW)))
-		{
-			return (read_partial_sector(file, buffer, lbasector, chdsector, tracknum, 16, 2336, phys) == CHDERR_NONE);
-		}
-
-		/* return 2352 byte mode 1 raw sector from a 2352 byte mode 2 raw sector */
-		if ((datatype == CD_TRACK_MODE1_RAW) && (tracktype == CD_TRACK_MODE2_RAW))
-		{
-			return (read_partial_sector(file, buffer, lbasector, chdsector, tracknum, 0, 2352, phys) == CHDERR_NONE);
-		}
-
-		write_log("CDROM: Conversion from type %d to type %d not supported!\n", tracktype, datatype);
-		return 0;
-	}
-}
-
-UINT32 cdrom_read_subcode(cdrom_file *file, UINT32 lbasector, void *buffer, bool phys)
-{
-	// compute CHD sector and tracknumber
-	UINT32 tracknum = 0;
-	UINT32 chdsector;
-
-	if (file == NULL)
-		return 0;
-
-	if (phys)
-	{
-		chdsector = physical_to_chd_lba(file, lbasector, &tracknum);
-	}
-	else
-	{
-		chdsector = logical_to_chd_lba(file, lbasector, &tracknum);
-	}
-
-	if (file->cdtoc.tracks[tracknum].subsize == 0)
-		return 0;
-
-	// read the data
-	chd_error err = read_partial_sector(file, buffer, lbasector, chdsector, tracknum, file->cdtoc.tracks[tracknum].datasize, file->cdtoc.tracks[tracknum].subsize, phys);
-	return (err == CHDERR_NONE);
 }
 
 /*-------------------------------------------------
@@ -3246,6 +2774,47 @@ const char *cdrom_get_subtype_string(UINT32 subtype)
 	}
 }
 
+chd_error metadata_find_entry(chd_file *chd, UINT32 metatag, UINT32 metaindex, metadata_entry *metaentry)
+{
+	/* start at the beginning */
+	metaentry->offset = chd->header.metaoffset;
+	metaentry->prev = 0;
+
+	/* loop until we run out of options */
+	while (metaentry->offset != 0)
+	{
+		UINT8	raw_meta_header[METADATA_HEADER_SIZE];
+		UINT32	count;
+
+		/* read the raw header */
+		core_fseek(chd->file, metaentry->offset, SEEK_SET);
+		count = core_fread(chd->file, raw_meta_header, sizeof(raw_meta_header));
+		if (count != sizeof(raw_meta_header))
+			break;
+
+		/* extract the data */
+		metaentry->metatag = get_bigendian_uint32(&raw_meta_header[0]);
+		metaentry->length = get_bigendian_uint32(&raw_meta_header[4]);
+		metaentry->next = get_bigendian_uint64(&raw_meta_header[8]);
+
+		/* flags are encoded in the high byte of length */
+		metaentry->flags = metaentry->length >> 24;
+		metaentry->length &= 0x00ffffff;
+
+		/* if we got a match, proceed */
+		if (metatag == CHDMETATAG_WILDCARD || metaentry->metatag == metatag)
+			if (metaindex-- == 0)
+				return CHDERR_NONE;
+
+		/* no match, fetch the next link */
+		metaentry->prev = metaentry->offset;
+		metaentry->offset = metaentry->next;
+	}
+
+	/* if we get here, we didn't find it */
+	return CHDERR_METADATA_NOT_FOUND;
+}
+
 /*-------------------------------------------------
     cdrom_parse_metadata - parse metadata into the
     TOC structure
@@ -3410,124 +2979,6 @@ chd_error cdrom_parse_metadata(chd_file *chd, cdrom_toc *toc)
 		}
 	}
 
-	return CHDERR_NONE;
-}
-
-
-
-
-//**************************************************************************
-//  CONSTANTS
-//**************************************************************************
-
-static const UINT8 V34_MAP_ENTRY_FLAG_TYPE_MASK = 0x0f;     // what type of hunk
-static const UINT8 V34_MAP_ENTRY_FLAG_NO_CRC = 0x10;        // no CRC is present
-
-/**
- * @fn  std::error_condition chd_file::hunk_info(uint32_t hunknum, chd_codec_type &compressor, uint32_t &compbytes)
- *
- * @brief   -------------------------------------------------
- *            hunk_info - return information about this hunk
- *          -------------------------------------------------.
- *
- * @param   hunknum             The hunknum.
- * @param [in,out]  compressor  The compressor.
- * @param [in,out]  compbytes   The compbytes.
- *
- * @return  A std::error_condition.
- */
-
-chd_error chd_hunk_info(chd_file *cf, UINT32 hunknum, chd_codec_type *compressor, UINT32 *compbytes)
-{
-	// error if invalid
-	if (hunknum >= cf->header.hunkcount)
-		return CHDERR_HUNK_OUT_OF_RANGE;
-
-	// get the map pointer
-	UINT8 *rawmap;
-	switch (cf->header.version)
-	{
-		// v3/v4 map entries
-		case 3:
-		case 4:
-			rawmap = cf->header.rawmap + 16 * hunknum;
-			switch (rawmap[15] & V34_MAP_ENTRY_FLAG_TYPE_MASK)
-			{
-				case V34_MAP_ENTRY_TYPE_COMPRESSED:
-					*compressor = CHD_CODEC_ZLIB;
-					*compbytes = be_read(&rawmap[12], 2) + (rawmap[14] << 16);
-					break;
-
-				case V34_MAP_ENTRY_TYPE_UNCOMPRESSED:
-					*compressor = CHD_CODEC_NONE;
-					*compbytes = cf->header.hunkbytes;
-					break;
-
-				case V34_MAP_ENTRY_TYPE_MINI:
-					*compressor = CHD_CODEC_MINI;
-					*compbytes = 0;
-					break;
-
-				case V34_MAP_ENTRY_TYPE_SELF_HUNK:
-					*compressor = CHD_CODEC_SELF;
-					*compbytes = 0;
-					break;
-
-				case V34_MAP_ENTRY_TYPE_PARENT_HUNK:
-					*compressor = CHD_CODEC_PARENT;
-					*compbytes = 0;
-					break;
-			}
-			break;
-
-		// v5 map entries
-		case 5:
-			rawmap = cf->header.rawmap + cf->header.mapentrybytes * hunknum;
-
-			// uncompressed case
-			if (cf->header.compression[0] == CHD_CODEC_NONE)
-			{
-				if (be_read(&rawmap[0], 4) == 0)
-				{
-					*compressor = CHD_CODEC_PARENT;
-					*compbytes = 0;
-				}
-				else
-				{
-					*compressor = CHD_CODEC_NONE;
-					*compbytes = cf->header.hunkbytes;
-				}
-				break;
-			}
-
-			// compressed case
-			switch (rawmap[0])
-			{
-				case COMPRESSION_TYPE_0:
-				case COMPRESSION_TYPE_1:
-				case COMPRESSION_TYPE_2:
-				case COMPRESSION_TYPE_3:
-					*compressor = cf->header.compression[rawmap[0]];
-					*compbytes = be_read(&rawmap[1], 3);
-					break;
-
-				case COMPRESSION_NONE:
-					*compressor = CHD_CODEC_NONE;
-					*compbytes = cf->header.hunkbytes;
-					break;
-
-				case COMPRESSION_SELF:
-					*compressor = CHD_CODEC_SELF;
-					*compbytes = 0;
-					break;
-
-				case COMPRESSION_PARENT:
-					*compressor = CHD_CODEC_PARENT;
-					*compbytes = 0;
-					break;
-			}
-			break;
-	}
 	return CHDERR_NONE;
 }
 

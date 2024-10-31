@@ -11,7 +11,7 @@
 #include "sysdeps.h"
 
 #include "options.h"
-#include "memory.h"
+#include "memory_uae.h"
 #include "custom.h"
 #include "audio.h"
 #include "gensound.h"
@@ -24,25 +24,13 @@ uae_u16 *paula_sndbufpt;
 int paula_sndbufsize;
 int sound_initialized = 0;
 int soundcheck = 0;
-int active_sound_stereo;
-unsigned int have_sound = 0;
-unsigned int obtainedfreq;
-float scaled_sample_evtime_orig;
-float sound_sync_multiplier = 1.0;
-#ifdef SAMPLER
-extern float sampler_evtime;
-#endif
+int have_sound = 0;
 
-void update_sound (float clk)
-{
-	if (!have_sound)
-		return;
-	scaled_sample_evtime_orig = clk * (float)CYCLE_UNIT * sound_sync_multiplier / obtainedfreq;
-	scaled_sample_evtime = scaled_sample_evtime_orig;
-#ifdef SAMPLER
-	sampler_evtime = clk * CYCLE_UNIT * sound_sync_multiplier;
-#endif
-}
+unsigned long last_time = 0;
+unsigned long now_time;
+
+unsigned long stat_time;
+unsigned long stat_count;
 
 void sound_mute (int newmute)
 {
@@ -145,21 +133,6 @@ void restart_sound_buffer (void)
 {
 }
 
-bool audio_finish_pull(void)
-{
-   return true;
-}
-
-int audio_is_pull(void)
-{
-   return 0;
-}
-
-int audio_pull_buffer(void)
-{
-   return 0;
-}
-
 /*
  * Handle audio specific cfgfile options
  */
@@ -175,4 +148,3 @@ int audio_parse_option (struct uae_prefs *p, const char *option, const char *val
 void audio_save_options (FILE *f, const struct uae_prefs *p)
 {
 }
-

@@ -1416,7 +1416,6 @@ struct string_list* cdrom_get_available_drives(void)
             }
          }
          string_list_deinitialize(&mods);
-         free(buf);
 
 #ifdef CDROM_DEBUG
          if (found)

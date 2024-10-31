@@ -61,11 +61,9 @@ const char *region_strings[REGION_STRINGS_LENGTH] = {
    "(USA, Europe)"
 };
 
-/**
- * label_sanitize:
- *
- * NOTE: Does not work with nested blocks.
- **/
+/*
+ * Does not work with nested blocks.
+ */
 void label_sanitize(char *label, bool (*left)(char*), bool (*right)(char*))
 {
    bool copy = true;
@@ -79,25 +77,16 @@ void label_sanitize(char *label, bool (*left)(char*), bool (*right)(char*))
       {
          /* check for the start of the range */
          if ((*left)(&label[lindex]))
-            copy                = false;
-         else
-         {
-            const bool whitespace = label[lindex] == ' ' && (rindex == 0 || new_label[rindex - 1] == ' ');
+            copy = false;
 
-            /* Simplify consecutive whitespaces */
-            if (!whitespace)
-               new_label[rindex++] = label[lindex];
-         }
+         if (copy)
+            new_label[rindex++] = label[lindex];
       }
       else if ((*right)(&label[lindex]))
          copy = true;
    }
 
-   /* Trim trailing whitespace */
-   if (rindex > 0 && new_label[rindex - 1] == ' ')
-      new_label[rindex - 1] = '\0';
-   else
-      new_label[rindex] = '\0';
+   new_label[rindex] = '\0';
 
    strlcpy(label, new_label, PATH_MAX_LENGTH);
 }

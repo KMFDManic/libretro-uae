@@ -1,22 +1,12 @@
 #ifndef LIBRETRO_MAPPER_H
 #define LIBRETRO_MAPPER_H
 
-#define RETRO_DEVICES                   6
-#define RETRO_AXIS_MAX                  4
+#define RETRO_DEVICES                   5
 
-#define AXIS_LX                         0
-#define AXIS_LY                         1
-#define AXIS_RX                         2
-#define AXIS_RY                         3
-
-#define RETRO_DEVICE_PUAE_JOYPAD        RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_JOYPAD, 0)
-#define RETRO_DEVICE_PUAE_ARCADIA       RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_JOYPAD, 1)
 #define RETRO_DEVICE_PUAE_JOYSTICK      RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_ANALOG, 0)
 #define RETRO_DEVICE_PUAE_CD32PAD       RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_ANALOG, 1)
 #define RETRO_DEVICE_PUAE_ANALOG        RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_ANALOG, 2)
 #define RETRO_DEVICE_PUAE_KEYBOARD      RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_KEYBOARD, 0)
-#define RETRO_DEVICE_PUAE_LIGHTGUN      RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_LIGHTGUN, 0)
-#define RETRO_DEVICE_PUAE_LIGHTPEN      RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_LIGHTGUN, 1)
 
 #define RETRO_DEVICE_ID_JOYPAD_LR       16
 #define RETRO_DEVICE_ID_JOYPAD_LL       17
@@ -34,42 +24,29 @@
 #define RETRO_MAPPER_JOYMOUSE           26
 #define RETRO_MAPPER_RESET              27
 #define RETRO_MAPPER_ASPECT_RATIO       28
-#define RETRO_MAPPER_CROP               29
+#define RETRO_MAPPER_ZOOM_MODE          29
 #define RETRO_MAPPER_TURBO_FIRE         30
 #define RETRO_MAPPER_SAVE_DISK          31
 
 #define RETRO_MAPPER_LAST               32
 
-#define TOGGLE_VKBD                     -31
-#define TOGGLE_STATUSBAR                -32
-#define SWITCH_JOYMOUSE                 -33
+#define TOGGLE_VKBD                     -11
+#define TOGGLE_STATUSBAR                -12
+#define SWITCH_JOYMOUSE                 -13
 #define MOUSE_LEFT_BUTTON               -2
 #define MOUSE_RIGHT_BUTTON              -3
 #define MOUSE_MIDDLE_BUTTON             -4
 #define MOUSE_SLOWER                    -5
 #define MOUSE_FASTER                    -6
-#define JOYSTICK_UP                     -11
-#define JOYSTICK_DOWN                   -12
-#define JOYSTICK_LEFT                   -13
-#define JOYSTICK_RIGHT                  -14
-#define JOYSTICK_FIRE                   -15
-#define JOYSTICK_2ND_FIRE               -16
+#define JOYSTICK_FIRE                   -7
+#define JOYSTICK_2ND_FIRE               -8
 
-/* Press durations */
-#define SHORT_PRESS 400
-#define LONG_PRESS 800
-
-extern int retro_keymap_id(const char *val);
-extern char *retro_keymap_value(const int id);
-extern char *retro_keymap_label(const int id);
 extern int16_t joypad_bits[RETRO_DEVICES];
-extern int16_t joypad_axis[RETRO_DEVICES][RETRO_AXIS_MAX];
 extern int mapper_keys[RETRO_MAPPER_LAST];
 extern long mapper_keys_pressed_time;
 extern void retro_poll_event();
 extern void retro_keyboard_event(bool, unsigned, uint32_t, uint16_t);
 extern unsigned retro_key_state_internal[RETROK_LAST];
-extern uint8_t retro_mouse_discard;
 extern bool retro_mousemode;
 
 extern unsigned int opt_cd32pad_options;
@@ -83,17 +60,12 @@ extern void retro_mouse_button(int, int, int);
 extern void retro_joystick(int, int, int);
 extern void retro_joystick_analog(int, int, int);
 extern void retro_joystick_button(int, int, int);
-extern void retro_arcadia_button(int, int, int);
 extern unsigned int retro_devices[RETRO_DEVICES];
-extern int cd32_pad_enabled[NORMAL_JPORTS];
-extern int arcadia_pad_enabled[NORMAL_JPORTS];
-extern bool is_retropad(unsigned retro_port);
-extern bool is_cd32pad(unsigned retro_port);
 
-extern int jflag[MAX_JPORTS][16];
-extern int kjflag[NORMAL_JPORTS][16];
-extern int mflag[NORMAL_JPORTS][16];
-extern int aflag[NORMAL_JPORTS][16];
+extern int jflag[4][16];
+extern int kjflag[2][16];
+extern int mflag[2][16];
+extern int aflag[2][16];
 
 typedef struct
 {
@@ -113,12 +85,8 @@ static retro_keymap retro_keys[RETROK_LAST] =
    {MOUSE_LEFT_BUTTON,  "MOUSE_LEFT_BUTTON",   "Mouse Left Button"},
    {MOUSE_RIGHT_BUTTON, "MOUSE_RIGHT_BUTTON",  "Mouse Right Button"},
    {MOUSE_MIDDLE_BUTTON,"MOUSE_MIDDLE_BUTTON", "Mouse Middle Button"},
-   {JOYSTICK_UP,        "JOYSTICK_UP",         "Joystick Up"},
-   {JOYSTICK_DOWN,      "JOYSTICK_DOWN",       "Joystick Down"},
-   {JOYSTICK_LEFT,      "JOYSTICK_LEFT",       "Joystick Left"},
-   {JOYSTICK_RIGHT,     "JOYSTICK_RIGHT",      "Joystick Right"},
-   {JOYSTICK_FIRE,      "JOYSTICK_FIRE",       "Joystick Fire"},
-   {JOYSTICK_2ND_FIRE,  "JOYSTICK_2ND_FIRE",   "Joystick Fire 2"},
+   {JOYSTICK_FIRE,      "JOYSTICK_FIRE",       "Joystick Fire Button"},
+   {JOYSTICK_2ND_FIRE,  "JOYSTICK_2ND_FIRE",   "Joystick 2nd Fire Button"},
    {RETROK_BACKSPACE,   "RETROK_BACKSPACE",    "Keyboard Backspace"},
    {RETROK_TAB,         "RETROK_TAB",          "Keyboard Tab"},
 /* {RETROK_CLEAR,       "RETROK_CLEAR",        "Keyboard Clear"}, */
@@ -132,10 +100,10 @@ static retro_keymap retro_keys[RETROK_LAST] =
 /* {RETROK_DOLLAR,      "RETROK_DOLLAR",       "Keyboard $"}, */
 /* {RETROK_AMPERSAND,   "RETROK_AMPERSAND",    "Keyboard &"}, */
    {RETROK_QUOTE,       "RETROK_QUOTE",        "Keyboard \'"},
-/* {RETROK_LEFTPAREN,   "RETROK_LEFTPAREN",    "Keyboard ("}, */
-/* {RETROK_RIGHTPAREN,  "RETROK_RIGHTPAREN",   "Keyboard )"}, */
-/* {RETROK_ASTERISK,    "RETROK_ASTERISK",     "Keyboard *"}, */
-/* {RETROK_PLUS,        "RETROK_PLUS",         "Keyboard +"}, */
+   {RETROK_LEFTPAREN,   "RETROK_LEFTPAREN",    "Keyboard ("},
+   {RETROK_RIGHTPAREN,  "RETROK_RIGHTPAREN",   "Keyboard )"},
+   {RETROK_ASTERISK,    "RETROK_ASTERISK",     "Keyboard *"},
+   {RETROK_PLUS,        "RETROK_PLUS",         "Keyboard +"},
    {RETROK_COMMA,       "RETROK_COMMA",        "Keyboard ,"},
    {RETROK_MINUS,       "RETROK_MINUS",        "Keyboard -"},
    {RETROK_PERIOD,      "RETROK_PERIOD",       "Keyboard ."},
@@ -150,7 +118,7 @@ static retro_keymap retro_keys[RETROK_LAST] =
    {RETROK_7,           "RETROK_7",            "Keyboard 7"},
    {RETROK_8,           "RETROK_8",            "Keyboard 8"},
    {RETROK_9,           "RETROK_9",            "Keyboard 9"},
-/* {RETROK_COLON,       "RETROK_COLON",        "Keyboard :"}, */
+   {RETROK_COLON,       "RETROK_COLON",        "Keyboard :"},
    {RETROK_SEMICOLON,   "RETROK_SEMICOLON",    "Keyboard ;"},
    {RETROK_LESS,        "RETROK_LESS",         "Keyboard <"},
    {RETROK_EQUALS,      "RETROK_EQUALS",       "Keyboard ="},
@@ -160,8 +128,8 @@ static retro_keymap retro_keys[RETROK_LAST] =
    {RETROK_LEFTBRACKET, "RETROK_LEFTBRACKET",  "Keyboard ["},
    {RETROK_BACKSLASH,   "RETROK_BACKSLASH",    "Keyboard \\"},
    {RETROK_RIGHTBRACKET,"RETROK_RIGHTBRACKET", "Keyboard ]"},
-/* {RETROK_CARET,       "RETROK_CARET",        "Keyboard ^"}, */
-/* {RETROK_UNDERSCORE,  "RETROK_UNDERSCORE",   "Keyboard _"}, */
+   {RETROK_CARET,       "RETROK_CARET",        "Keyboard ^"},
+   {RETROK_UNDERSCORE,  "RETROK_UNDERSCORE",   "Keyboard _"},
    {RETROK_BACKQUOTE,   "RETROK_BACKQUOTE",    "Keyboard `"},
    {RETROK_a,           "RETROK_a",            "Keyboard A"},
    {RETROK_b,           "RETROK_b",            "Keyboard B"},
@@ -232,7 +200,7 @@ static retro_keymap retro_keys[RETROK_LAST] =
    {RETROK_F14,         "RETROK_F14",          "Keyboard F14"},
    {RETROK_F15,         "RETROK_F15",          "Keyboard F15"},
 /* {RETROK_NUMLOCK,     "RETROK_NUMLOCK",      "Keyboard Num Lock"}, */
-   {RETROK_CAPSLOCK,    "RETROK_CAPSLOCK",     "Keyboard Caps Lock"},
+/* {RETROK_CAPSLOCK,    "RETROK_CAPSLOCK",     "Keyboard Caps Lock"}, */
 /* {RETROK_SCROLLOCK,   "RETROK_SCROLLOCK",    "Keyboard Scroll Lock"}, */
    {RETROK_LSHIFT,      "RETROK_LSHIFT",       "Keyboard Left Shift"},
    {RETROK_RSHIFT,      "RETROK_RSHIFT",       "Keyboard Right Shift"},
@@ -446,7 +414,7 @@ static const int keyboard_translation[512] =
    -1,             /* 302 = RETROK_SCROLLOCK */
    AK_RSH,         /* 303 = RETROK_RSHIFT */
    AK_LSH,         /* 304 = RETROK_LSHIFT */
-   AK_RAMI,        /* 305 = RETROK_RCTRL */
+   AK_CTRL,        /* 305 = RETROK_RCTRL */
    AK_CTRL,        /* 306 = RETROK_LCTRL */
    AK_RALT,        /* 307 = RETROK_RALT */
    AK_LALT,        /* 308 = RETROK_LALT */

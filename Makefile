@@ -2,25 +2,19 @@ CORE_DIR  := .
 ROOT_DIR  := .
 PLATFLAGS :=
 SOURCES_C :=
-EXEEXT    :=
-TARGET_NAME := puae
-SILENT    := 0
+TARGET_NAME := km_puae_xtreme_amped_2k24
 
 ifeq ($(platform),)
 platform = unix
-ifeq ($(shell uname -s),)
+ifeq ($(shell uname -a),)
    platform = win
-else ifneq ($(findstring MINGW,$(shell uname -s)),)
+else ifneq ($(findstring MINGW,$(shell uname -a)),)
    platform = win
-else ifneq ($(findstring Darwin,$(shell uname -s)),)
+else ifneq ($(findstring Darwin,$(shell uname -a)),)
    platform = osx
-else ifneq ($(findstring win,$(shell uname -s)),)
+else ifneq ($(findstring win,$(shell uname -a)),)
    platform = win
 endif
-endif
-
-ifeq ($(platform), win)
-   EXEEXT := .exe
 endif
 
 ifeq ($(capsimg), 1)
@@ -41,14 +35,6 @@ ifneq (,$(findstring unix,$(platform)))
          CXX = g++-x86
       endif
    endif
-
-# Raspberry Pi 4
-else ifneq (,$(findstring rpi4,$(platform)))
-   TARGET := $(TARGET_NAME)_libretro.so
-   fpic := -fPIC
-   LDFLAGS += -lm -lpthread -ldl
-   CFLAGS += -march=armv8-a+crc+simd -mcpu=cortex-a72
-   SHARED := -shared -Wl,--version-script=$(CORE_DIR)/libretro/link.T -Wl,--no-undefined
 
 # RPI
 else ifeq ($(platform), rpi)
@@ -208,7 +194,7 @@ else ifneq (,$(filter $(platform), ps3 psl1ght))
    ZLIB_DIR = $(LIBUTILS)/zlib/
    LDFLAGS := -lm -lpthread -lc
    SOURCES_C += $(CORE_DIR)/deps-ps3/ps3_functions.c
-   STATIC_LINKING=0
+   STATIC_LINKING=1
    STATIC_LINKING_LINK=1
 
 # Emscripten
@@ -225,14 +211,13 @@ else ifneq (,$(findstring ios,$(platform)))
    SHARED := -dynamiclib
    COMMONFLAGS += -DIOS
    MINVERSION :=
-   PLATFLAGS += -Wno-error=implicit-function-declaration
-   PLATFLAGS += -DUSE_NAMED_SEMAPHORES
    ifeq ($(IOSSDK),)
       IOSSDK := $(shell xcodebuild -version -sdk iphoneos Path)
    endif
    ifeq ($(platform),ios-arm64)
       CC = cc -arch arm64 -isysroot $(IOSSDK)
       CXX = c++ -arch arm64 -isysroot $(IOSSDK)
+      PLATFLAGS += -Wno-error=implicit-function-declaration
    else
       CC = cc -arch armv7 -isysroot $(IOSSDK)
       CXX = c++ -arch armv7 -isysroot $(IOSSDK)
@@ -244,7 +229,6 @@ else ifneq (,$(findstring ios,$(platform)))
    endif
    COMMONFLAGS += $(MINVERSION)
    CFLAGS += $(COMMONFLAGS)
-   LDFLAGS += $(MINVERSION)
 
 else ifeq ($(platform), tvos-arm64)
    TARGET := $(TARGET_NAME)_libretro_tvos.dylib
@@ -253,23 +237,17 @@ else ifeq ($(platform), tvos-arm64)
    SHARED := -dynamiclib
    COMMONFLAGS += -DIOS
    PLATFLAGS += -Wno-error=implicit-function-declaration
-   PLATFLAGS += -DUSE_NAMED_SEMAPHORES
    CFLAGS += $(COMMONFLAGS)
    ifeq ($(IOSSDK),)
       IOSSDK := $(shell xcodebuild -version -sdk appletvos Path)
    endif
    CC = cc -arch arm64 -isysroot $(IOSSDK)
    CXX = c++ -arch arm64 -isysroot $(IOSSDK)
-   MINVERSION = -mappletvos-version-min=11.0
-   COMMONFLAGS += $(MINVERSION)
-   CFLAGS += $(COMMONFLAGS)
-   LDFLAGS += $(MINVERSION)
 
 # ARM
 else ifneq (,$(findstring armv,$(platform)))
    TARGET := $(TARGET_NAME)_libretro.so
    SHARED := -shared -Wl,--version-script=$(CORE_DIR)/libretro/link.T -Wl,--no-undefined
-   LDFLAGS += -lm -lpthread -ldl
    fpic := -fPIC
    ifneq (,$(findstring cortexa8,$(platform)))
       CFLAGS += -marm -mcpu=cortex-a8
@@ -306,170 +284,47 @@ else
    LDFLAGS += -s
 endif
 
-# Zlib
-CFLAGS += -DHAVE_ZLIB
-
 # 7zip
-ifneq ($(NO_7ZIP), 1)
-    CFLAGS += -DHAVE_7ZIP -D_7ZIP_ST
-endif
+CFLAGS += -DHAVE_7ZIP -D_7ZIP_ST
 
 # CHD
 HAVE_CHD = 1
 
-# libmpeg2
-HAVE_MPEG2 = 1
-
-CFLAGS += -std=gnu99 -DINLINE="inline" -D__LIBRETRO__ -MMD
-
-# VFS
-ifneq ($(NO_LIBRETRO_VFS), 1)
-    CFLAGS += -DUSE_LIBRETRO_VFS
-endif
-
-CXXFLAGS += -DUAE -MMD
+CFLAGS += -std=gnu99 -DINLINE="inline" -D__LIBRETRO__
 
 include Makefile.common
 
-OBJECTS     += $(SOURCES_C:.c=.o) $(SOURCES_CXX:.cpp=.o) $(SOURCES_ASM:.S=.o)
+$(info CFLAGS: $(PLATFLAGS) $(CFLAGS))
+$(info -------)
 
-OBJDIR      := build
-OBJECTS     := $(addprefix $(OBJDIR)/,$(OBJECTS))
+OBJECTS += $(SOURCES_C:.c=.o) $(SOURCES_CXX:.cpp=.o) $(SOURCES_ASM:.S=.o)
 
-INCDIRS     := $(EXTRA_INCLUDES) $(INCFLAGS)
-
-default: info all
-
-info:
-	$(info CFLAGS: $(PLATFLAGS) $(CFLAGS))
-	$(info -------)
+INCDIRS := $(EXTRA_INCLUDES) $(INCFLAGS)
 
 all: $(TARGET)
 
--include $(OBJECTS:.o=.d))
-
 $(TARGET): $(OBJECTS)
+
 ifeq ($(STATIC_LINKING_LINK),1)
 	$(AR) rcs $@ $(OBJECTS)
 else
 	$(CC) $(fpic) $(SHARED) $(INCDIRS) -o $@ $(OBJECTS) $(LDFLAGS)
 endif
 
-$(OBJDIR)/%.o: %.c
-	@mkdir -p $(dir $@)
-	@if [ $(SILENT) -ne 1 ]; then\
-		$(if $@, $(shell echo echo CC $<),);\
-	fi
+%.o: %.c
 	$(CC) $(fpic) $(CFLAGS) $(PLATFLAGS) $(INCDIRS) -c -o $@ $<
 
-$(OBJDIR)/%.o: %.cpp
-	@mkdir -p $(dir $@)
-	@if [ $(SILENT) -ne 1 ]; then\
-		$(if $@, $(shell echo echo CXX $<),);\
-	fi
-	$(CXX) $(fpic) $(CXXFLAGS) $(PLATFLAGS) $(INCDIRS) -c -o $@ $<
-
-$(OBJDIR)/%.o: %.S
-	@mkdir -p $(dir $@)
-	@if [ $(SILENT) -ne 1 ]; then\
-		$(if $@, $(shell echo echo CC_AS $<),);\
-	fi
+%.o: %.S
 	$(CC_AS) $(CFLAGS) -c $^ -o $@
 
 clean:
-	rm -rf $(OBJDIR)
-	rm -f $(TARGET)
+	rm -f $(OBJECTS) $(TARGET)
 
 objectclean:
-	rm -rf $(OBJDIR)
+	rm -f $(OBJECTS)
 
 targetclean:
 	rm -f $(TARGET)
 
-### generators ###
-gen:
-	mkdir -p sources/gen
-	$(MAKE) gen/build68k
-	$(MAKE) gen/cpudefs.c
+.PHONY: clean
 
-	$(MAKE) gen/genlinetoscr gen/genblitter
-	$(MAKE) gen/linetoscr.c gen/blit.h
-
-	$(MAKE) gen/gencpu # gen/gencomp
-	$(MAKE) gen/cpuemu_0.c # gen/compemu.c
-	$(MAKE) genclean
-
-genclean:
-	rm -r sources/gen
-
-### build68k ###
-gen/build68k:
-	$(info Building build68k)
-	$(CC) $(INCDIRS) sources/src/build68k.c sources/src/writelog.c -o sources/gen/build68k$(EXEEXT)
-
-gen/cpudefs.c: sources/gen/build68k$(EXEEXT) sources/src/table68k
-	$(info Generating cpudefs)
-	sources/gen/build68k$(EXEEXT) < sources/src/table68k > sources/src/cpudefs.c
-
-### genlinetoscr ###
-gen/genlinetoscr:
-	$(info Building genlinetoscr)
-	$(CC) $(INCDIRS) sources/src/genlinetoscr.c -o sources/gen/genlinetoscr$(EXEEXT)
-
-gen/linetoscr.c: sources/gen/genlinetoscr$(EXEEXT)
-	$(info Generating linetoscr)
-	sources/gen/genlinetoscr$(EXEEXT) > sources/src/linetoscr.c
-	sources/gen/genlinetoscr$(EXEEXT) -b > sources/src/linetoscr-be.c
-
-### genblitter ###
-gen/genblitter:
-	$(info Building genblitter)
-	$(CC) $(INCDIRS) sources/src/genblitter.c sources/src/blitops.c -o sources/gen/genblitter$(EXEEXT)
-
-gen/blit.h: sources/gen/genblitter$(EXEEXT)
-	$(info Generating blit.h)
-	sources/gen/genblitter$(EXEEXT) i > sources/src/include/blit.h
-	$(info Generating blitfunc.h)
-	sources/gen/genblitter$(EXEEXT) h > sources/src/include/blitfunc.h
-	$(info Generating blitfunc.c)
-	sources/gen/genblitter$(EXEEXT) f > sources/src/blitfunc.c
-	$(info Generating blittable.c)
-	sources/gen/genblitter$(EXEEXT) t > sources/src/blittable.c
-
-### gencpu ###
-gen/gencpu:
-	$(info Building gencpu)
-	$(CC) $(INCDIRS) sources/src/gencpu.c sources/src/cpudefs.c sources/src/readcpu.c sources/src/gen.c -o sources/gen/gencpu$(EXEEXT)
-
-gen/cpuemu_0.c: sources/gen/gencpu$(EXEEXT)
-	$(info Generating cpuemu_*)
-	cd sources/gen && ./gencpu$(EXEEXT)
-	mv sources/gen/cpuemu_0.cpp sources/src/cpuemu_0.c
-	mv sources/gen/cpuemu_11.cpp sources/src/cpuemu_11.c
-	mv sources/gen/cpuemu_13.cpp sources/src/cpuemu_13.c
-	mv sources/gen/cpuemu_20.cpp sources/src/cpuemu_20.c
-	mv sources/gen/cpuemu_21.cpp sources/src/cpuemu_21.c
-	mv sources/gen/cpuemu_22.cpp sources/src/cpuemu_22.c
-	mv sources/gen/cpuemu_23.cpp sources/src/cpuemu_23.c
-	mv sources/gen/cpuemu_24.cpp sources/src/cpuemu_24.c
-	mv sources/gen/cpuemu_31.cpp sources/src/cpuemu_31.c
-	mv sources/gen/cpuemu_32.cpp sources/src/cpuemu_32.c
-	mv sources/gen/cpuemu_33.cpp sources/src/cpuemu_33.c
-	mv sources/gen/cpuemu_34.cpp sources/src/cpuemu_34.c
-	mv sources/gen/cpuemu_35.cpp sources/src/cpuemu_35.c
-	mv sources/gen/cpuemu_40.cpp sources/src/cpuemu_40.c
-	mv sources/gen/cpuemu_50.cpp sources/src/cpuemu_50.c
-	mv sources/gen/cpustbl.cpp sources/src/cpustbl.c
-	mv sources/gen/cputbl.h sources/src/include/cputbl.h
-
-### gencomp ###
-gen/gencomp:
-	$(info Building gencomp)
-	$(CC) $(INCDIRS) sources/src/jit/gencomp.c sources/src/cpudefs.c sources/src/readcpu.c sources/src/gen.c -o sources/gen/gencomp$(EXEEXT)
-
-gen/compemu.c: sources/gen/gencomp$(EXEEXT)
-	sources/gen/gencomp$(EXEEXT)
-
-
-
-.PHONY: all clean objectclean targetclean gen

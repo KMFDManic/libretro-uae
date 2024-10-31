@@ -193,11 +193,9 @@ sthread_t *sthread_create_with_priority(void (*thread_func)(void*), void *userda
    if (!thread)
       return NULL;
 
-   if (!(data = (struct thread_data*)malloc(sizeof(*data))))
-   {
-      free(thread);
-      return NULL;
-   }
+   data                     = (struct thread_data*)malloc(sizeof(*data));
+   if (!data)
+      goto error;
 
    data->func               = thread_func;
    data->userdata           = userdata;
@@ -244,7 +242,10 @@ sthread_t *sthread_create_with_priority(void (*thread_func)(void*), void *userda
 
    if (thread_created)
       return thread;
-   free(data);
+
+error:
+   if (data)
+      free(data);
    free(thread);
    return NULL;
 }
@@ -297,7 +298,6 @@ void sthread_join(sthread_t *thread)
    free(thread);
 }
 
-#if !defined(GEKKO)
 /**
  * sthread_isself:
  * @thread                  : pointer to thread object
@@ -306,13 +306,16 @@ void sthread_join(sthread_t *thread)
  */
 bool sthread_isself(sthread_t *thread)
 {
+  /* This thread can't possibly be a null thread */
+  if (!thread)
+     return false;
+
 #ifdef USE_WIN32_THREADS
-   return thread ? GetCurrentThreadId() == thread->id        : false;
+   return GetCurrentThreadId() == thread->id;
 #else
-   return thread ? pthread_equal(pthread_self(), thread->id) : false;
+   return pthread_equal(pthread_self(),thread->id);
 #endif
 }
-#endif
 
 /**
  * slock_new:
@@ -324,19 +327,27 @@ bool sthread_isself(sthread_t *thread)
  **/
 slock_t *slock_new(void)
 {
+   bool mutex_created = false;
    slock_t      *lock = (slock_t*)calloc(1, sizeof(*lock));
    if (!lock)
       return NULL;
+
+
 #ifdef USE_WIN32_THREADS
    InitializeCriticalSection(&lock->lock);
+   mutex_created             = true;
 #else
-   if (pthread_mutex_init(&lock->lock, NULL) != 0)
-   {
-      free(lock);
-      return NULL;
-   }
+   mutex_created             = (pthread_mutex_init(&lock->lock, NULL) == 0);
 #endif
+
+   if (!mutex_created)
+      goto error;
+
    return lock;
+
+error:
+   free(lock);
+   return NULL;
 }
 
 /**
@@ -386,10 +397,12 @@ void slock_lock(slock_t *lock)
 **/
 bool slock_try_lock(slock_t *lock)
 {
+   if (!lock)
+      return false;
 #ifdef USE_WIN32_THREADS
-   return lock && TryEnterCriticalSection(&lock->lock);
+   return TryEnterCriticalSection(&lock->lock);
 #else
-   return lock && (pthread_mutex_trylock(&lock->lock) == 0);
+   return pthread_mutex_trylock(&lock->lock)==0;
 #endif
 }
 
@@ -452,9 +465,11 @@ scond_t *scond_new(void)
     *
     * Note: We might could simplify this using vista+ condition variables,
     * but we wanted an XP compatible solution. */
-   if (!(cond->event      = CreateEvent(NULL, FALSE, FALSE, NULL)))
+   cond->event             = CreateEvent(NULL, FALSE, FALSE, NULL);
+   if (!cond->event)
       goto error;
-   if (!(cond->hot_potato = CreateEvent(NULL, FALSE, FALSE, NULL)))
+   cond->hot_potato        = CreateEvent(NULL, FALSE, FALSE, NULL);
+   if (!cond->hot_potato)
    {
       CloseHandle(cond->event);
       goto error;
@@ -508,6 +523,7 @@ static bool _scond_wait_win32(scond_t *cond, slock_t *lock, DWORD dwMilliseconds
    static bool beginPeriod = false;
    DWORD tsBegin;
 #endif
+
    DWORD waitResult;
    DWORD dwFinalTimeout = dwMilliseconds; /* Careful! in case we begin in the head,
                                              we don't do the hot potato stuff,
@@ -527,7 +543,9 @@ static bool _scond_wait_win32(scond_t *cond, slock_t *lock, DWORD dwMilliseconds
    }
 
    if (performanceCounterFrequency.QuadPart == 0)
+   {
       QueryPerformanceFrequency(&performanceCounterFrequency);
+   }
 #else
    if (!beginPeriod)
    {
@@ -550,9 +568,9 @@ static bool _scond_wait_win32(scond_t *cond, slock_t *lock, DWORD dwMilliseconds
 
    /* walk to the end of the linked list */
    while (*ptr)
-      ptr       = &((*ptr)->next);
+      ptr = &((*ptr)->next);
 
-   *ptr         = &myentry;
+   *ptr = &myentry;
    myentry.next = NULL;
 
    cond->waiters++;
@@ -726,17 +744,18 @@ void scond_wait(scond_t *cond, slock_t *lock)
 int scond_broadcast(scond_t *cond)
 {
 #ifdef USE_WIN32_THREADS
-   /* Remember, we currently have mutex */
-   if (cond->waiters != 0)
-   {
-      /* Awaken everything which is currently queued up */
-      if (cond->wakens == 0)
-         SetEvent(cond->event);
-      cond->wakens = cond->waiters;
+   /* remember: we currently have mutex */
+   if (cond->waiters == 0)
+      return 0;
 
-      /* Since there is now at least one pending waken, the potato must be in play */
-      SetEvent(cond->hot_potato);
-   }
+   /* awaken everything which is currently queued up */
+   if (cond->wakens == 0)
+      SetEvent(cond->event);
+   cond->wakens = cond->waiters;
+
+   /* Since there is now at least one pending waken, the potato must be in play */
+   SetEvent(cond->hot_potato);
+
    return 0;
 #else
    return pthread_cond_broadcast(&cond->cond);
@@ -809,6 +828,11 @@ bool scond_wait_timeout(scond_t *cond, slock_t *lock, int64_t timeout_us)
     * Someone asking for a 0 timeout clearly wants immediate timeout.
     * Someone asking for a 1 timeout clearly wants an actual timeout
     * of the minimum length */
+
+   /* Someone asking for 1000 or 1001 timeout shouldn't
+    * accidentally get 2ms. */
+   DWORD dwMilliseconds = timeout_us/1000;
+
    /* The implementation of a 0 timeout here with pthreads is sketchy.
     * It isn't clear what happens if pthread_cond_timedwait is called with NOW.
     * Moreover, it is possible that this thread gets pre-empted after the
@@ -819,14 +843,14 @@ bool scond_wait_timeout(scond_t *cond, slock_t *lock, int64_t timeout_us)
    if (timeout_us == 0)
       return false;
    else if (timeout_us < 1000)
-      return _scond_wait_win32(cond, lock, 1);
-   /* Someone asking for 1000 or 1001 timeout shouldn't
-    * accidentally get 2ms. */
-   return _scond_wait_win32(cond, lock, timeout_us / 1000);
+      dwMilliseconds = 1;
+
+   return _scond_wait_win32(cond,lock,dwMilliseconds);
 #else
    int ret;
    int64_t seconds, remainder;
-   struct timespec now;
+   struct timespec now = {0};
+
 #ifdef __MACH__
    /* OSX doesn't have clock_gettime. */
    clock_serv_t cclock;
@@ -918,9 +942,9 @@ bool sthread_tls_set(sthread_tls_t *tls, const void *data)
 
 uintptr_t sthread_get_thread_id(sthread_t *thread)
 {
-   if (thread)
-      return (uintptr_t)thread->id;
-   return 0;
+   if (!thread)
+      return 0;
+   return (uintptr_t)thread->id;
 }
 
 uintptr_t sthread_get_current_thread_id(void)

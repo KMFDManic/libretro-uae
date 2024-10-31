@@ -48,7 +48,8 @@ bool trans_stream_trans_full(
       rdata = *data;
    else
    {
-      if (!(rdata = backend->stream_new()))
+      rdata = backend->stream_new();
+      if (!rdata)
       {
          if (error)
             *error = TRANS_STREAM_ERROR_ALLOCATION_FAILURE;

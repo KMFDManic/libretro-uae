@@ -12,9 +12,10 @@
 
 #include "options.h"
 #include "blkdev.h"
+#include "fsdb.h"
 #include "isofs_api.h"
-#include "uae/string.h"
 #include "zfile.h"
+#include "misc.h"
 
 #include "isofs.h"
 
@@ -601,8 +602,6 @@ static int isofs_read_inode(struct inode *inode)
 		ret = isofs_read_level3_size(inode);
 		if (ret < 0)
 			goto fail;
-		// FIXME: this value is never used (?), because it is overwritten
-		// with ret = 0 further down.
 		ret = -EIO;
 	} else {
 		ei->i_next_section_block = 0;
@@ -1061,7 +1060,7 @@ repeat:
 				int l = p[0];
 				char t = p[l];
 				p[l] = 0;
-				au_copy (inode->i_comment + uaetcslen (inode->i_comment), maxcomment + 1 - uaetcslen (inode->i_comment), p + 1);
+				au_copy (inode->i_comment + _tcslen (inode->i_comment), maxcomment + 1 - _tcslen (inode->i_comment), p + 1);
 				p[l] = t;
 			}
 			break;
@@ -1584,7 +1583,7 @@ static int isofs_get_blocks(struct inode *inode, uae_u32 iblock, struct buffer_h
 
 	offset = 0;
 	firstext = ei->i_first_extent;
-	sect_size = (unsigned int)(ei->i_section_size >> ISOFS_BUFFER_BITS(inode));
+	sect_size = ei->i_section_size >> ISOFS_BUFFER_BITS(inode);
 	nextblk = ei->i_next_section_block;
 	nextoff = ei->i_next_section_offset;
 	section = 0;
@@ -1616,7 +1615,7 @@ static int isofs_get_blocks(struct inode *inode, uae_u32 iblock, struct buffer_h
 				goto abort;
 			}
 			firstext  = ISOFS_I(ninode)->i_first_extent;
-			sect_size = (unsigned int)(ISOFS_I(ninode)->i_section_size >> ISOFS_BUFFER_BITS(ninode));
+			sect_size = ISOFS_I(ninode)->i_section_size >> ISOFS_BUFFER_BITS(ninode);
 			nextblk   = ISOFS_I(ninode)->i_next_section_block;
 			nextoff   = ISOFS_I(ninode)->i_next_section_offset;
 			iput(ninode);
@@ -1722,12 +1721,6 @@ static int isofs_fill_super(struct super_block *s, void *data, int silent, uae_u
 	sbi->s_high_sierra = 0; /* default is iso9660 */
 
 	vol_desc_start = 0;
-#if 0
-	struct device_info di;
-	if (sys_command_info (s->unitnum, &di, true)) {
-		vol_desc_start = di.toc.firstaddress;
-	}
-#endif
 
 	for (iso_blknum = vol_desc_start+16; iso_blknum < vol_desc_start+100; iso_blknum++) {
 		struct hs_volume_descriptor *hdp;
@@ -1976,7 +1969,7 @@ root_found:
 			if (IS_ERR(inode))
 				goto out_no_root;
 			TCHAR *volname = get_joliet_name(pri->volume_id, 28, sbi->s_utf8);
-			if (volname && volname[0] != '\0') {
+			if (volname && _tcslen(volname) > 0) {
 				xfree(volume_name);
 				volume_name = volname;
 				write_log(_T("ISOFS: Joliet Volume ID: '%s'\n"), volume_name);
@@ -2106,7 +2099,7 @@ static int isofs_cmp(const char *name, char *compare, int dlen)
 	}
 	char tmp = compare[dlen];
 	compare[dlen] = 0;
-	int c = stricmp(name, compare);
+	int c = strcasecmp(name, compare);
 	compare[dlen] = tmp;
 	return c;
 }
@@ -2197,7 +2190,7 @@ static struct inode *isofs_find_entry(struct inode *dir, char *tmpname, TCHAR *t
 		 * respectively, is set
 		 */
 		match = 0;
-		if (dlen > 0 && (!sbi->s_hide || (!(de->flags[0-sbi->s_high_sierra] & 1))) && (sbi->s_showassoc || (!(de->flags[0-sbi->s_high_sierra] & 4)))) {
+		if (dlen > 0 && (!sbi->s_hide || (!(de->flags[-sbi->s_high_sierra] & 1))) && (sbi->s_showassoc || (!(de->flags[-sbi->s_high_sierra] & 4)))) {
 			if (jname)
 				match = _tcsicmp(jname, nameu) == 0;
 			else
@@ -2329,7 +2322,7 @@ static int do_isofs_readdir(struct inode *inode, struct file *filp, char *tmpnam
 			inode_number = isofs_get_ino(block_saved, offset_saved, bufbits);
 		}
 
-		if (de->flags[0-sbi->s_high_sierra] & 0x80) {
+		if (de->flags[-sbi->s_high_sierra] & 0x80) {
 			first_de = 0;
 			filp->f_pos += de_len;
 			continue;
@@ -2354,7 +2347,7 @@ static int do_isofs_readdir(struct inode *inode, struct file *filp, char *tmpnam
 		 * Do not report hidden files if so instructed, or associated
 		 * files unless instructed to do so
 		 */
-		if ((sbi->s_hide && (de->flags[0-sbi->s_high_sierra] & 1)) || (!sbi->s_showassoc && (de->flags[0-sbi->s_high_sierra] & 4))) {
+		if ((sbi->s_hide && (de->flags[-sbi->s_high_sierra] & 1)) || (!sbi->s_showassoc && (de->flags[-sbi->s_high_sierra] & 4))) {
 			filp->f_pos += de_len;
 			continue;
 		}
@@ -2398,11 +2391,11 @@ static int do_isofs_readdir(struct inode *inode, struct file *filp, char *tmpnam
 				else {
 					char t = p[len];
 					p[len] = 0;
-					au_fs_copy (outname, MAX_DPATH, p);
+					au_copy (outname, MAX_DPATH, p);
 					p[len] = t;
 				}
 			} else {
-				uae_tcslcpy (outname, jname, MAX_DPATH);
+				_tcscpy (outname, jname);
 				xfree (jname);
 			}
 			dinode = isofs_iget(inode->i_sb, bh_block, offset_saved, outname);
@@ -2476,14 +2469,14 @@ bool isofs_mediainfo(void *sbp, struct isofs_info *ii)
 		_stprintf (ii->devname, _T("CD%d"), sb->unitnum);
 		if (sys_command_info (sb->unitnum, &di, true)) {
 			totalblocks = di.cylinders * di.sectorspertrack * di.trackspercylinder;
-			uae_tcslcpy (ii->devname, di.label, sizeof (ii->devname));
+			_tcscpy (ii->devname, di.label);
 		}
 		ii->unknown_media = sb->unknown_media;
 		if (sb->root) {
-			if (sb->root->name[0] == '\0') {
-				uae_tcslcpy(ii->volumename, _T("NO_LABEL"), sizeof(ii->volumename));
+			if (_tcslen(sb->root->name) == 0) {
+				_tcscpy(ii->volumename, _T("NO_LABEL"));
 			} else {
-				uae_tcslcpy (ii->volumename, sb->root->name, sizeof(ii->volumename));
+				_tcscpy (ii->volumename, sb->root->name);
 			}
 			ii->blocks = sbi->s_max_size;
 			ii->totalblocks = totalblocks ? totalblocks : ii->blocks;
@@ -2551,7 +2544,7 @@ bool isofs_stat(void *sbp, uae_u64 uniq, struct mystat *statbuf)
 
 	if (!inode)
 		return false;
-	
+
 	statbuf->mtime.tv_sec = inode->i_mtime.tv_sec;
 	statbuf->mtime.tv_usec = 0;
 	if (!XS_ISDIR(inode->i_mode)) {
@@ -2571,7 +2564,7 @@ bool isofs_exists(void *sbp, uae_u64 parent, const TCHAR *name, uae_u64 *uniq)
 
 	if (!inode)
 		return false;
-	ua_fs_copy(tmp3, sizeof tmp3, name, '_');
+	ua_copy(tmp3, sizeof tmp3, name);
 	inode = isofs_find_entry(inode, tmp1, tmp1x, (struct iso_directory_record*)tmp2, tmp3, name);
 	if (inode) {
 		*uniq = inode->i_ino;
@@ -2634,7 +2627,7 @@ void isofs_closefile(struct cd_openfile_s *of)
 uae_s64 isofs_lseek(struct cd_openfile_s *of, uae_s64 offset, int mode)
 {
 	struct inode *inode = of->inode;
-	uae_s64 ret = -1;
+	int ret = -1;
 	switch (mode)
 	{
 	case SEEK_SET:
@@ -2676,11 +2669,11 @@ uae_s64 isofs_read(struct cd_openfile_s *of, void *bp, unsigned int size)
 	uae_u8 *b = (uae_u8*)bp;
 
 	if (size + of->seek > inode->i_size)
-		size = (unsigned int)(inode->i_size - of->seek);
+		size = inode->i_size - of->seek;
 
 	// first partial sector
 	if (offset & bufmask) {
-		bh = isofs_bread(inode, (uae_u32)(offset / bufsize));
+		bh = isofs_bread(inode, offset / bufsize);
 		if (!bh)
 			return 0;
 		read = size < (bufsize - (offset & bufmask)) ? size : (bufsize - (offset & bufmask));
@@ -2694,7 +2687,7 @@ uae_s64 isofs_read(struct cd_openfile_s *of, void *bp, unsigned int size)
 	}
 	// complete sector(s)
 	while (size >= bufsize) {
-		bh = isofs_bread(inode, (uae_u32)(offset / bufsize));
+		bh = isofs_bread(inode, offset / bufsize);
 		if (!bh)
 			return totalread;
 		read = size < bufsize ? size : bufsize;
@@ -2708,7 +2701,7 @@ uae_s64 isofs_read(struct cd_openfile_s *of, void *bp, unsigned int size)
 	}
 	// and finally last partial sector
 	if (size > 0) {
-		bh = isofs_bread(inode, (uae_u32)(offset / bufsize));
+		bh = isofs_bread(inode, offset / bufsize);
 		if (!bh)
 			return totalread;
 		read = size;

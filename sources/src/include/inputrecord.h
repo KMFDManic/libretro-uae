@@ -6,11 +6,6 @@
   * Copyright 2010 Toni Wilen
   */
 
-#ifndef UAE_INPUTRECORD_H
-#define UAE_INPUTRECORD_H
-
-#include "uae/types.h"
-
 extern int inputrecord_debug;
 
 //#define INPREC_JOYPORT 1
@@ -21,11 +16,9 @@ extern int inputrecord_debug;
 //#define INPREC_VSYNC 6
 //#define INPREC_CIAVSYNC 7
 #define INPREC_EVENT 8
-#define INPREC_DEBUG_START 0x60
-#define INPREC_DEBUG 0x60
 #define INPREC_CIADEBUG 0x61
-#define INPREC_CPUDEBUG 0x62
-#define INPREC_DEBUG_END 0x6f
+#define INPREC_DEBUG 0x62
+#define INPREC_DEBUG2 0x63
 #define INPREC_STOP 0x7d
 #define INPREC_END 0x7e
 #define INPREC_QUIT 0x7f
@@ -39,7 +32,7 @@ extern int inputrecord_debug;
 
 extern int input_record, input_play;
 extern void inprec_close (bool);
-extern void inprec_save (const TCHAR*, const TCHAR*);
+//extern void inprec_save (const TCHAR*, const TCHAR*);
 extern int inprec_open (const TCHAR*, const TCHAR*);
 extern bool inprec_prepare_record (const TCHAR*);
 extern void inprec_playtorecord (void);
@@ -52,14 +45,16 @@ extern void inprec_recorddiskchange (int nr, const TCHAR *fname, bool writeprote
 
 extern void inprec_recorddebug (uae_u32);
 extern void inprec_playdebug (uae_u32);
-extern void inprec_recorddebug_cpu (int, uae_u16);
-extern void inprec_playdebug_cpu (int, uae_u16);
+extern void inprec_recorddebug_cpu (int);
+extern void inprec_playdebug_cpu (int);
 extern void inprec_recorddebug_cia (uae_u32, uae_u32, uae_u32);
 extern void inprec_playdebug_cia (uae_u32, uae_u32, uae_u32);
 
 extern int inprec_getposition (void);
 extern void inprec_setposition (int offset, int replaycounter);
-extern bool inprec_realtime (void);
+extern bool inprec_realtimev (void);
 extern void inprec_getstatus (TCHAR*);
 
-#endif /* UAE_INPUTRECORD_H */
+extern void inprec_ru8 (uae_u8 v);
+extern void inprec_ru16 (uae_u16 v);
+extern void inprec_ru32 (uae_u32 v);

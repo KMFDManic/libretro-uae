@@ -6,17 +6,21 @@
  *
  */
 
+
 #include <string.h>
 
 #include "cdata.h"
 #include "u_quick.h"
 #include "getbits.h"
 
+
 #define QBITMASK 0xff
+
 
 USHORT dms_quick_text_loc;
 
-USHORT Unpack_QUICK(UCHAR *in, UCHAR *out, USHORT pklen1, USHORT origsize){
+
+USHORT Unpack_QUICK(UCHAR *in, UCHAR *out, USHORT origsize){
 	USHORT i, j;
 	UCHAR *outend;
 
@@ -38,8 +42,6 @@ USHORT Unpack_QUICK(UCHAR *in, UCHAR *out, USHORT pklen1, USHORT origsize){
 	}
 	dms_quick_text_loc = (USHORT)((dms_quick_text_loc+5) & QBITMASK);
 
-	in += pklen1;
-	if (dms_indata == in + 2 || dms_indata == in + 1 || dms_indata == in + 0) return 0;
-
-	return 1;
+	return 0;
 }
+

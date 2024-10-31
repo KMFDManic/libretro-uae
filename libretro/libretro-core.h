@@ -10,33 +10,22 @@
 
 #include "zfile.h"
 
-#ifdef USE_LIBRETRO_VFS
-#include <streams/file_stream_transforms.h>
-#endif
-
 #include "libretro-glue.h"
 #include "libretro-dc.h"
 #include "string/stdstring.h"
 #include "file/file_path.h"
-#include "retro_dirent.h"
 #include "encodings/utf.h"
 
+extern int imagename_timer;
 extern void reset_drawing(void);
 extern void print_statusbar(void);
-extern unsigned int statusbar_message_timer;
 extern bool retro_message;
 extern char retro_message_msg[1024];
-extern void set_variable(const char* key, const char* value);
-extern char* get_variable(const char *key);
 
 extern int retro_thisframe_first_drawn_line;
 extern int retro_thisframe_last_drawn_line;
 extern int retro_min_diwstart;
 extern int retro_max_diwstop;
-extern bool retro_av_info_is_lace;
-extern bool libretro_frame_end;
-extern bool libretro_runloop_active;
-extern void libretro_do_restart(int argc, TCHAR **argv);
 
 /* File helpers functions */
 #define RETRO_PATH_MAX 512
@@ -52,49 +41,23 @@ extern void libretro_do_restart(int argc, TCHAR **argv);
 /* Usual suspects */
 extern char retro_system_directory[RETRO_PATH_MAX];
 extern char retro_save_directory[RETRO_PATH_MAX];
-extern char retro_temp_directory[RETRO_PATH_MAX];
 extern struct zfile *retro_deserialize_file;
-extern dc_storage *dc;
+extern dc_storage *retro_dc;
 extern retro_log_printf_t log_cb;
 extern long retro_ticks(void);
 extern int RGBc(int r, int g, int b);
 extern int umain (int argc, TCHAR **argv);
 
 /* Statusbar */
-#define STATUSBAR_BOTTOM   0x01
-#define STATUSBAR_TOP      0x02
-#define STATUSBAR_BASIC    0x04
-#define STATUSBAR_MINIMAL  0x08
-#define STATUSBAR_MESSAGES 0x10
+#define STATUSBAR_BOTTOM    0x01
+#define STATUSBAR_TOP       0x02
+#define STATUSBAR_BASIC     0x04
+#define STATUSBAR_MINIMAL   0x08
 
 /* Autoloadfastforward */
 #define AUTOLOADFASTFORWARD_FD 0x01
 #define AUTOLOADFASTFORWARD_HD 0x02
 #define AUTOLOADFASTFORWARD_CD 0x04
-
-/* LED interface */
-enum
-{
-   RETRO_LED_POWER = 0,
-   RETRO_LED_DRIVES,
-   RETRO_LED_HDCDMD,
-   RETRO_LED_DRIVE0,
-   RETRO_LED_DRIVE1,
-   RETRO_LED_DRIVE2,
-   RETRO_LED_DRIVE3,
-   RETRO_LED_HD,
-   RETRO_LED_CDMD,
-   RETRO_LED_NUM
-};
-
-/* RetroPad options */
-enum
-{
-   RETROPAD_OPTIONS_DISABLED = 0,
-   RETROPAD_OPTIONS_ROTATE,
-   RETROPAD_OPTIONS_JUMP,
-   RETROPAD_OPTIONS_ROTATE_JUMP
-};
 
 /* Functions */
 extern void emu_function(int function);
@@ -104,10 +67,9 @@ enum EMU_FUNCTIONS
    EMU_STATUSBAR,
    EMU_JOYMOUSE,
    EMU_RESET,
-   EMU_FREEZE,
    EMU_SAVE_DISK,
    EMU_ASPECT_RATIO,
-   EMU_CROP,
+   EMU_ZOOM_MODE,
    EMU_TURBO_FIRE,
    EMU_FUNCTION_COUNT
 };
@@ -225,13 +187,6 @@ static retro_kickstarts uae_kickstarts[15] =
          "CD32 Extended-ROM rev 40.60 (1993)(Commodore)(CD32).rom"},
 };
 
-/* Dynamic cartridge core option info */
-struct puae_cart_info
-{
-   char *value;
-   char *label;
-};
-
 /* Support files */
 #define LIBRETRO_PUAE_PREFIX    "puae_libretro"
 
@@ -241,7 +196,6 @@ struct puae_cart_info
 #define PUAE_VIDEO_HIRES        0x04
 #define PUAE_VIDEO_SUPERHIRES   0x08
 #define PUAE_VIDEO_DOUBLELINE   0x10
-#define PUAE_VIDEO_1x1          0x20
 
 #define PUAE_VIDEO_PAL_LO       PUAE_VIDEO_PAL
 #define PUAE_VIDEO_PAL_HI       PUAE_VIDEO_PAL|PUAE_VIDEO_HIRES
@@ -255,62 +209,26 @@ struct puae_cart_info
 #define PUAE_VIDEO_NTSC_SUHI    PUAE_VIDEO_NTSC|PUAE_VIDEO_SUPERHIRES
 #define PUAE_VIDEO_NTSC_SUHI_DL PUAE_VIDEO_NTSC|PUAE_VIDEO_SUPERHIRES|PUAE_VIDEO_DOUBLELINE
 
-#define PUAE_VIDEO_HZ_PAL       49.9204101562500000f
-#define PUAE_VIDEO_HZ_NTSC      59.8260993957519531f
+#define PUAE_VIDEO_HZ_PAL       49.9204101562500000
+#define PUAE_VIDEO_HZ_NTSC      59.8260993957519531
 #define PUAE_VIDEO_WIDTH        720
-#define PUAE_VIDEO_HEIGHT_PAL   574
-#define PUAE_VIDEO_HEIGHT_NTSC  484
+#define PUAE_VIDEO_HEIGHT_PAL   576
+#define PUAE_VIDEO_HEIGHT_NTSC  480
 
 /* Libretro video */
-#define EMULATOR_DEF_WIDTH      PUAE_VIDEO_WIDTH
-#define EMULATOR_DEF_HEIGHT     PUAE_VIDEO_HEIGHT_PAL
+#define EMULATOR_DEF_WIDTH      720
+#define EMULATOR_DEF_HEIGHT     576
 #define EMULATOR_MAX_WIDTH      (EMULATOR_DEF_WIDTH * 2)
 #define EMULATOR_MAX_HEIGHT     EMULATOR_DEF_HEIGHT
 #define RETRO_BMP_SIZE          (EMULATOR_DEF_WIDTH * EMULATOR_DEF_HEIGHT * 4) /* 4x is big enough for 24-bit SuperHires double line */
 
 extern unsigned short int retro_bmp[RETRO_BMP_SIZE];
-extern uint8_t pix_bytes;
-extern unsigned short int retrow;
-extern unsigned short int retroh;
-extern unsigned short int retrow_crop;
-extern unsigned short int retroh_crop;
-extern unsigned short int retrox_crop;
-extern unsigned short int retroy_crop;
-extern unsigned short int video_config;
-extern unsigned short int video_config_geometry;
-
-#define RESOLUTION_AUTO_NONE       0
-#define RESOLUTION_AUTO_LORES      1
-#define RESOLUTION_AUTO_HIRES      2
-#define RESOLUTION_AUTO_SUPERHIRES 3
-
-#define CROP_NONE            0
-#define CROP_MINIMUM         1
-#define CROP_SMALLER         2
-#define CROP_SMALL           3
-#define CROP_MEDIUM          4
-#define CROP_LARGE           5
-#define CROP_LARGER          6
-#define CROP_MAXIMUM         7
-#define CROP_AUTO            8
-
-#define CROP_MODE_BOTH       0
-#define CROP_MODE_VERTICAL   1
-#define CROP_MODE_HORIZONTAL 2
-#define CROP_MODE_16_9       3
-#define CROP_MODE_16_10      4
-#define CROP_MODE_4_3        5
-#define CROP_MODE_5_4        6
-
-#define ANALOG_STICK_SPEED_OPTIONS \
-   { \
-      { "0.1", "10%" }, { "0.2", "20%" }, { "0.3", "30%" }, { "0.4", "40%" }, { "0.5", "50%" },  \
-      { "0.6", "60%" }, { "0.7", "70%" }, { "0.8", "80%" }, { "0.9", "90%" }, { "1.0", "100%" }, \
-      { "1.1", "110%" },{ "1.2", "120%" },{ "1.3", "130%" },{ "1.4", "140%" },{ "1.5", "150%" }, \
-      { "1.6", "160%" },{ "1.7", "170%" },{ "1.8", "180%" },{ "1.9", "190%" },{ "2.0", "200%" }, \
-      { "2.1", "210%" },{ "2.2", "220%" },{ "2.3", "230%" },{ "2.4", "240%" },{ "2.5", "250%" }, \
-      { "2.6", "260%" },{ "2.7", "270%" },{ "2.8", "280%" },{ "2.9", "290%" },{ "3.0", "300%" }, \
-      { NULL, NULL }, \
-   }
+extern unsigned int pix_bytes;
+extern int retrow;
+extern int retroh;
+extern int zoomed_width;
+extern int zoomed_height;
+extern unsigned int video_config;
+extern unsigned int video_config_geometry;
 
 #endif /* LIBRETRO_CORE_H */

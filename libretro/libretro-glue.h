@@ -1,20 +1,12 @@
 #ifndef LIBRETRO_GLUE_H
 #define LIBRETRO_GLUE_H
 
-#include "sysconfig.h"
-#include "sysdeps.h"
-#include "options.h"
-#include "xwin.h"
-
-extern struct vidbuf_description *gfxvidinfo;
-
 #include <stdio.h>
 #include "libretro-core.h"
 
 #ifdef WITH_CHD
 /*** CHD ***/
 #include "deps/libz/zlib.h"
-#include "deps/zstd/lib/zstd.h"
 #include "deps/7zip/LzmaDec.h"
 
 #include "libchdr/chd.h"
@@ -50,9 +42,8 @@ typedef struct cdrom_track_info
 
 	/* fields used in MAME/MESS only */
 	UINT32 logframeofs; /* logical frame of actual track data - offset by pregap size if pregap not physically present */
-	UINT32 physframeofs;/* physical frame of actual track data in CHD data */
+	UINT32 physframeofs; /* physical frame of actual track data in CHD data */
 	UINT32 chdframeofs; /* frame number this track starts at on the CHD */
-	UINT32 logframes;   /* number of frames from logframeofs until end of track data */
 } cdrom_track_info;
 
 typedef struct cdrom_toc
@@ -90,30 +81,17 @@ struct _codec_interface
 typedef struct _map_entry map_entry;
 struct _map_entry
 {
-	uint64_t            offset;         /* offset within the file of the data */
-	uint32_t            crc;            /* 32-bit CRC of the data */
-	uint32_t            length;         /* length of the data */
-	uint8_t             flags;          /* misc flags */
-};
-
-/* a single metadata entry */
-typedef struct _metadata_entry metadata_entry;
-struct _metadata_entry
-{
-	uint64_t            offset;         /* offset within the file of the header */
-	uint64_t            next;           /* offset within the file of the next header */
-	uint64_t            prev;           /* offset within the file of the previous header */
-	uint32_t            length;         /* length of the metadata */
-	uint32_t            metatag;        /* metadata tag */
-	uint8_t             flags;          /* flag bits */
+	UINT64					offset;			/* offset within the file of the data */
+	UINT32					crc;			/* 32-bit CRC of the data */
+	UINT32					length;			/* length of the data */
+	UINT8					flags;			/* misc flags */
 };
 
 /* codec-private data for the ZLIB codec */
 typedef struct _zlib_allocator zlib_allocator;
 struct _zlib_allocator
 {
-	uint32_t *				allocptr[MAX_ZLIB_ALLOCS];
-	uint32_t *				allocptr2[MAX_ZLIB_ALLOCS];
+	UINT32 *				allocptr[MAX_ZLIB_ALLOCS];
 };
 
 typedef struct _zlib_codec_data zlib_codec_data;
@@ -131,7 +109,6 @@ struct _lzma_allocator
  	void (*Free)(void *p, void *address); /* address can be 0 */
 	void (*FreeSz)(void *p, void *address, size_t size); /* address can be 0 */
 	uint32_t*	allocptr[MAX_LZMA_ALLOCS];
-	uint32_t*	allocptr2[MAX_LZMA_ALLOCS];
 };
 
 typedef struct _lzma_codec_data lzma_codec_data;
@@ -139,18 +116,6 @@ struct _lzma_codec_data
 {
 	CLzmaDec		decoder;
 	lzma_allocator	allocator;
-};
-
-typedef struct _huff_codec_data huff_codec_data;
-struct _huff_codec_data
-{
-	struct huffman_decoder* decoder;
-};
-
-typedef struct _zstd_codec_data zstd_codec_data;
-struct _zstd_codec_data
-{
-	ZSTD_DStream *dstream;
 };
 
 /* codec-private data for the CDZL codec */
@@ -175,14 +140,6 @@ struct _cdlz_codec_data {
 	uint8_t*			buffer;
 };
 
-/* codec-private data for the FLAC codec */
-typedef struct _flac_codec_data flac_codec_data;
-struct _flac_codec_data {
-	/* internal state */
-	int		native_endian;
-	flac_decoder	decoder;
-};
-
 /* codec-private data for the CDFL codec */
 typedef struct _cdfl_codec_data cdfl_codec_data;
 struct _cdfl_codec_data {
@@ -195,58 +152,54 @@ struct _cdfl_codec_data {
 	uint8_t*	buffer;
 };
 
-typedef struct _cdzs_codec_data cdzs_codec_data;
-struct _cdzs_codec_data
-{
-	zstd_codec_data base_decompressor;
-#ifdef WANT_SUBCODE
-	zstd_codec_data subcode_decompressor;
-#endif
-	uint8_t*				buffer;
-};
-
 /* internal representation of an open CHD file */
 struct _chd_file
 {
-	uint32_t                cookie;			/* cookie, should equal COOKIE_VALUE */
+	UINT32					cookie;			/* cookie, should equal COOKIE_VALUE */
 
-	core_file *             file;			/* handle to the open core file */
-	chd_header              header;			/* header, extracted from file */
+	core_file *				file;			/* handle to the open core file */
+	UINT8					owns_file;		/* flag indicating if this file should be closed on chd_close() */
+	chd_header				header;			/* header, extracted from file */
 
-	chd_file *              parent;			/* pointer to parent file, or NULL */
+	chd_file *				parent;			/* pointer to parent file, or NULL */
 
-	map_entry *             map;			/* array of map entries */
-
-#ifdef NEED_CACHE_HUNK
-	uint8_t *               cache;			/* hunk cache pointer */
-	uint32_t                cachehunk;		/* index of currently cached hunk */
-
-	uint8_t *               compare;		/* hunk compare pointer */
-	uint32_t                comparehunk;	/* index of current compare data */
-#endif
-
-	uint8_t *               compressed;		/* pointer to buffer for compressed data */
-	const codec_interface * codecintf[4];	/* interface to the codec */
-
-	zlib_codec_data         zlib_codec_data;		/* zlib codec data */
-	lzma_codec_data         lzma_codec_data;		/* lzma codec data */
-	huff_codec_data         huff_codec_data;		/* huff codec data */
-	flac_codec_data         flac_codec_data;		/* flac codec data */
-	zstd_codec_data         zstd_codec_data;		/* zstd codec data */
-	cdzl_codec_data         cdzl_codec_data;		/* cdzl codec data */
-	cdlz_codec_data         cdlz_codec_data;		/* cdlz codec data */
-	cdfl_codec_data         cdfl_codec_data;		/* cdfl codec data */
-	cdzs_codec_data         cdzs_codec_data;		/* cdzs codec data */
+	map_entry *				map;			/* array of map entries */
 
 #ifdef NEED_CACHE_HUNK
-	uint32_t                maxhunk;		/* maximum hunk accessed */
+	UINT8 *					cache;			/* hunk cache pointer */
+	UINT32					cachehunk;		/* index of currently cached hunk */
+
+	UINT8 *					compare;		/* hunk compare pointer */
+	UINT32					comparehunk;	/* index of current compare data */
 #endif
 
-	uint8_t *               file_cache;		/* cache of underlying file */
+	UINT8 *					compressed;		/* pointer to buffer for compressed data */
+	const codec_interface *	codecintf[4];	/* interface to the codec */
+
+	zlib_codec_data			zlib_codec_data;		/* zlib codec data */
+	cdzl_codec_data			cdzl_codec_data;		/* cdzl codec data */
+	cdlz_codec_data			cdlz_codec_data;		/* cdlz codec data */
+	cdfl_codec_data			cdfl_codec_data;		/* cdfl codec data */
+
+#ifdef NEED_CACHE_HUNK
+	UINT32					maxhunk;		/* maximum hunk accessed */
+#endif
+};
+
+/* a single metadata entry */
+typedef struct _metadata_entry metadata_entry;
+struct _metadata_entry
+{
+	UINT64					offset;			/* offset within the file of the header */
+	UINT64					next;			/* offset within the file of the next header */
+	UINT64					prev;			/* offset within the file of the previous header */
+	UINT32					length;			/* length of the metadata */
+	UINT32					metatag;		/* metadata tag */
+	UINT8					flags;			/* flag bits */
 };
 
 chd_error chd_hunk_info(chd_file *chd, UINT32 hunknum, chd_codec_type *compressor, UINT32 *compbytes);
-chd_error read_partial_sector(cdrom_file *file, void *dest, UINT32 lbasector, UINT32 chdsector, UINT32 tracknum, UINT32 startoffs, UINT32 length, bool phys);
+chd_error read_partial_sector(cdrom_file *file, void *dest, UINT32 lbasector, UINT32 chdsector, UINT32 tracknum, UINT32 startoffs, UINT32 length);
 chd_error cdrom_parse_metadata(chd_file *chd, cdrom_toc *toc);
 chd_error chd_read_metadata(chd_file *chd, chd_metadata_tag searchtag, UINT32 searchindex, char *output);
 chd_error metadata_find_entry(chd_file *chd, UINT32 metatag, UINT32 metaindex, metadata_entry *metaentry);
@@ -275,9 +228,8 @@ const cdrom_toc *cdrom_get_toc(cdrom_file *file);
 /* zlib */
 #include "deps/libz/zlib.h"
 #include "deps/libz/unzip.h"
-void gz_compress(const char *in, const char *out);
-void gz_uncompress(const char *in, const char *out);
-void zip_uncompress(const char *in, const char *out, char *lastfile);
+void gz_uncompress(gzFile in, FILE *out);
+void zip_uncompress(char *in, char *out, char *lastfile);
 
 /* 7z */
 #include "deps/7zip/7z.h"
@@ -285,15 +237,14 @@ void zip_uncompress(const char *in, const char *out, char *lastfile);
 #include "deps/7zip/7zCrc.h"
 #include "deps/7zip/7zFile.h"
 #include "deps/7zip/7zTypes.h"
-void sevenzip_uncompress(const char *in, const char *out, char *lastfile);
+void sevenzip_uncompress(char *in, char *out, char *lastfile);
 
 /* HDF */
 int make_hdf (char *hdf_path, char *hdf_size, char *device_name);
 
 /* Misc */
 int qstrcmp(const void *a, const void *b);
-int retro_remove(const char *path);
-int remove_recurse(const char *path);
+void remove_recurse(const char *path);
 int fcopy(const char *src, const char *dst);
 int fcmp(const char *src, const char *dst);
 uint64_t fsize(const char *path);
@@ -305,5 +256,6 @@ char* strright(const char* str, int len);
 bool strstartswith(const char* str, const char* start);
 bool strendswith(const char* str, const char* end);
 void path_join(char* out, const char* basedir, const char* filename);
+char* path_join_dup(const char* basedir, const char* filename);
 
 #endif /* LIBRETRO_GLUE_H */

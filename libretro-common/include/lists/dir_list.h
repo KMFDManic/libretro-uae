@@ -42,7 +42,7 @@ RETRO_BEGIN_DECLS
  *
  * Create a directory listing, appending to an existing list
  *
- * @return Returns true on success, otherwise false.
+ * Returns: true success, false in case of error.
  **/
 bool dir_list_append(struct string_list *list, const char *dir, const char *ext,
       bool include_dirs, bool include_hidden, bool include_compressed, bool recursive);
@@ -58,18 +58,15 @@ bool dir_list_append(struct string_list *list, const char *dir, const char *ext,
  *
  * Create a directory listing.
  *
- * @return pointer to a directory listing of type 'struct string_list *' on success,
+ * Returns: pointer to a directory listing of type 'struct string_list *' on success,
  * NULL in case of error. Has to be freed manually.
  **/
 struct string_list *dir_list_new(const char *dir, const char *ext,
       bool include_dirs, bool include_hidden, bool include_compressed, bool recursive);
 
-/**
- * dir_list_initialize:
- *
- * NOTE: @list must zero initialised before
- * calling this function, otherwise UB.
- **/
+/* Warning: 'list' must zero initialised before
+ * calling this function, otherwise memory leaks/
+ * undefined behaviour will occur */
 bool dir_list_initialize(struct string_list *list,
       const char *dir,
       const char *ext, bool include_dirs,
@@ -82,6 +79,7 @@ bool dir_list_initialize(struct string_list *list,
  * @dir_first : move the directories in the listing to the top?
  *
  * Sorts a directory listing.
+ *
  **/
 void dir_list_sort(struct string_list *list, bool dir_first);
 
@@ -90,6 +88,7 @@ void dir_list_sort(struct string_list *list, bool dir_first);
  * @list : pointer to the directory listing
  *
  * Frees a directory listing.
+ *
  **/
 void dir_list_free(struct string_list *list);
 

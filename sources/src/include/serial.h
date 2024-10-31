@@ -7,34 +7,27 @@
   * Copyright 1997 Christian Schmitt <schmitt@freiburg.linux.de>
   */
 
-#ifndef UAE_SERIAL_H
-#define UAE_SERIAL_H
-
-#include "uae/types.h"
-
 extern void serial_init (void);
 extern void serial_exit (void);
 extern void serial_dtr_off (void);
 extern void serial_dtr_on (void);
 
 extern uae_u16 SERDATR (void);
+extern int   SERDATS (void);
 extern void  SERPER (uae_u16 w);
 extern void  SERDAT (uae_u16 w);
 
-extern uae_u8 serial_writestatus(uae_u8, uae_u8);
-extern uae_u8 serial_readstatus(uae_u8, uae_u8);
-extern void serial_uartbreak(int);
-extern void serial_rbf_change(bool);
+extern uae_u8 serial_writestatus (uae_u8, uae_u8);
+extern uae_u8 serial_readstatus (uae_u8);
 extern uae_u16 serdat;
 
 extern int doreadser, serstat;
 
 extern void serial_flush_buffer (void);
 
-extern void serial_hsynchandler(void);
-extern void serial_rethink(void);
-
+extern void uaeser_initdata (void *vsd, void *user);
 extern int uaeser_getdatalength (void);
+extern int uaeser_getbytespending (void*);
 extern int uaeser_open (void*, void*, int);
 extern void uaeser_close (void*);
 extern int uaeser_read (void*, uae_u8 *data, uae_u32 len);
@@ -51,5 +44,3 @@ extern int enet_readseravail (void);
 extern int enet_readser (uae_u16 *buffer);
 extern int enet_open (TCHAR *name);
 extern void enet_close (void);
-
-#endif /* UAE_SERIAL_H */

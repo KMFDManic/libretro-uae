@@ -6,22 +6,16 @@
 
 #include "libretro-core.h"
 
-#ifdef USE_LIBRETRO_VFS
-#undef local_to_utf8_string_alloc
-#define local_to_utf8_string_alloc my_strdup
-#endif
-
 extern int log_filesys;
 
 bool my_stat (const TCHAR *name, struct mystat *ms) {
 	struct stat sonuc;
 	if (stat(name, &sonuc) == -1) {
-		if (log_filesys)
-			write_log("my_stat: stat on file '%s' failed\n", name);
+		write_log("my_stat: stat on file '%s' failed\n", name);
 		return false;
 	}
 	if (log_filesys)
-		write_log("stat returned size %9jd: %s\n", sonuc.st_size, name);
+		write_log("fs_stat returned size %9jd: %s\n", sonuc.st_size, name);
 	ms->size = sonuc.st_size;
 	ms->mode = 0;
 	if (sonuc.st_mode & S_IRUSR) {
@@ -36,16 +30,6 @@ bool my_stat (const TCHAR *name, struct mystat *ms) {
 	ms->st_blocks = sonuc.blocks;
 #endif
 	return true;
-}
-
-bool my_chmod (const TCHAR *name, uae_u32 mode)
-{
-    mode_t attr =   (S_IRUSR | S_IRGRP | S_IROTH);
-    attr |=         (S_IXUSR | S_IXGRP | S_IXOTH);
-    if (mode & FILEFLAG_WRITE)
-        attr |=     (S_IWUSR | S_IWGRP | S_IWOTH);
-
-        return chmod (name, attr);
 }
 
 static int setfiletime (const TCHAR *name, int days, int minute, int tick, int tolocal)
@@ -70,7 +54,7 @@ bool my_utime (const TCHAR *name, struct mytimeval *tv)
 		tv2.tv_usec = 1000;
 		tolocal = 0;
 	}
-	timeval_to_amiga (&tv2, &days, &mins, &ticks, 50);
+	timeval_to_amiga (&tv2, &days, &mins, &ticks);
 	if (setfiletime (name, days, mins, ticks, tolocal))
 		return true;
 
@@ -81,8 +65,8 @@ int my_existstype(const char *name, int mode)
 {
 	int ret = 0;
 
-	const char *utf8 = local_to_utf8_string_alloc(name);
-
+	char *utf8 = NULL;
+	utf8 = local_to_utf8_string_alloc(name);
 	if (path_is_valid(utf8))
 	{
 		switch (mode)
@@ -98,6 +82,9 @@ int my_existstype(const char *name, int mode)
 				break;
 		}
 	}
+
+	free(utf8);
+	utf8 = NULL;
 
 	return ret;
 }
@@ -117,11 +104,7 @@ int my_getvolumeinfo(const char *root)
 	struct stat sonuc;
 	int ret = 0;
 
-#ifdef USE_LIBRETRO_VFS
-	if (stat(utf8_to_local_string_alloc(root), &sonuc) == -1)
-#else
-	if (stat(root, &sonuc) == -1)
-#endif
+	if (lstat(root, &sonuc) == -1)
 		return -1;
 	if (!S_ISDIR(sonuc.st_mode))
 		return -1;
@@ -150,17 +133,16 @@ FILE *my_opentext(const TCHAR *name)
 	return fopen(name, "r");
 }
 
-struct my_opendir_s *my_opendir(const TCHAR *name)
+struct my_opendir_s *my_opendir(const TCHAR *name, const TCHAR *mask)
 {
 	struct my_opendir_s *mod;
 	mod = xmalloc (struct my_opendir_s, 1);
 	if (!mod)
 		return NULL;
 
-	RDIR* dir = retro_opendir(name);
+	DIR* dir = opendir(name);
 	if (!dir) {
 		write_log("my_opendir '%s' failed\n", name);
-		xfree(mod);
 		return NULL;
 	}
 	else if (log_filesys)
@@ -174,17 +156,17 @@ void my_closedir(struct my_opendir_s *mod)
 {
 	if (mod)
 	{
-		retro_closedir(mod->dh);
-		xfree(mod);
+		closedir(mod->dh);
+		free(mod);
 	}
 }
 
 int my_readdir(struct my_opendir_s* mod, TCHAR* name)
 {
-	mod->dp = retro_readdir(mod->dh);
+	mod->dp = readdir(mod->dh);
 	if (!mod->dp)
 		return 0;
-	_tcscpy (name, retro_dirent_get_name(mod->dh));
+	_tcscpy (name, mod->dp->d_name);
 	if (log_filesys)
 		write_log("my_readdir => '%s'\n", name);
 	return 1;
@@ -207,7 +189,7 @@ int my_rmdir(const TCHAR *name)
 	memset(tname, 0, sizeof(TCHAR) * MAX_DPATH);
 
 	/* SHFileOperation() ignores FOF_NORECURSION when deleting directories.. */
-	od = my_opendir(name);
+	od = my_opendir(name, 0);
 	if (!od)
 		return -1;
 	cnt = 0;
@@ -224,7 +206,7 @@ int my_rmdir(const TCHAR *name)
 	return rmdir(name);
 }
 
-int my_unlink(const TCHAR *name, bool dontrecycle)
+int my_unlink(const TCHAR *name)
 {
 	return unlink(name);
 }
@@ -236,8 +218,6 @@ int my_rename(const TCHAR *oldname, const TCHAR *newname)
 
 struct my_openfile_s *my_open(const TCHAR *name, int flags)
 {
-	const char *name_utf8 = local_to_utf8_string_alloc(name);
-
 	if (log_filesys)
 		write_log("my_open '%s' flags=%x\n", name, flags);
 
@@ -270,12 +250,11 @@ struct my_openfile_s *my_open(const TCHAR *name, int flags)
 	if (flags & O_TRUNC)
 		strcpy(fopen_flags, "wb+");
 
-	fp = fopen(name_utf8, fopen_flags);
+	fp = fopen(name, fopen_flags);
 
 	free(fopen_flags);
 	fopen_flags = NULL;
 #endif
-
 	struct my_openfile_s *mos;
 	mos = xmalloc (struct my_openfile_s, 1);
 	if (!mos)
@@ -301,8 +280,8 @@ void my_close(struct my_openfile_s* mos)
 #endif
 	if (result != 0)
 		write_log("error %d closing file '%s'\n", result, mos->path);
-	xfree(mos->path);
-	xfree(mos);
+	free(mos->path);
+	free(mos);
 }
 
 uae_s64 my_lseek(struct my_openfile_s *mos, uae_s64 offset, int whence)
@@ -316,7 +295,7 @@ uae_s64 my_lseek(struct my_openfile_s *mos, uae_s64 offset, int whence)
 	result = (result == 0) ? ftell(mos->fp) : -1;
 #endif
 	if (log_filesys)
-		write_log("my_lseek result %jd\n", result);
+	    write_log("my_lseek result %jd\n", result);
 	return result;
 }
 
@@ -348,7 +327,7 @@ uae_s64 my_fsize(struct my_openfile_s* mos) {
 		return -1;
 	}
 	else if (log_filesys)
-		write_log("my_fsize '%s' %d\n", mos->path, sonuc.st_size);
+		write_log("my_fsize: '%s' = %d\n", mos->path, sonuc.st_size);
 
 	return sonuc.st_size;
 #else
@@ -358,11 +337,10 @@ uae_s64 my_fsize(struct my_openfile_s* mos) {
 		write_log("my_fsize: fseek on file '%s' failed\n", mos->path);
 		return -1;
 	}
+	else if (log_filesys)
+		write_log("my_fsize: '%s' = %d\n", mos->path, size);
 
 	size = ftell(mos->fp);
-	if (log_filesys)
-		write_log("my_fsize '%s' %d\n", mos->path, size);
-
 	fseek(mos->fp, current, SEEK_SET);
 	return size;
 #endif
@@ -419,18 +397,8 @@ int my_issamevolume(const TCHAR *path1, const TCHAR *path2, TCHAR *path)
 		}
 	}
 	if (log_filesys)
-		write_log (_T("'%s' (%s) matched with '%s' (%s), extra = '%s'\n"), path1, p1, path2, p2, path);
+	    write_log (_T("'%s' (%s) matched with '%s' (%s), extra = '%s'\n"), path1, p1, path2, p2, path);
 	return cnt;
-}
-
-bool my_issamepath(const TCHAR *path1, const TCHAR *path2)
-{
-	TCHAR path1o[MAX_DPATH], path2o[MAX_DPATH];
-	my_canonicalize_path(path1, path1o, sizeof path1o / sizeof(TCHAR));
-	my_canonicalize_path(path2, path2o, sizeof path2o / sizeof(TCHAR));
-	if (!_tcsicmp(path1o, path2o))
-		return true;
-	return false;
 }
 
 int my_setcurrentdir(const TCHAR *curdir, TCHAR *oldcur)
@@ -454,27 +422,9 @@ int my_setcurrentdir(const TCHAR *curdir, TCHAR *oldcur)
 #endif
 }
 
-bool my_createshortcut(const TCHAR *source, const TCHAR *target, const TCHAR *description) 
+bool my_resolvesoftlink(TCHAR *linkfile, int size)
 {
 	return false;
-}
-
-bool my_resolvesoftlink(TCHAR *linkfile, int size, bool linkonly)
-{
-	return false;
-}
-
-const TCHAR *my_getfilepart(const TCHAR *filename)
-{
-	const TCHAR *p;
-
-	p = _tcsrchr(filename, '\\');
-	if (p)
-		return p + 1;
-	p = _tcsrchr(filename, '/');
-	if (p)
-		return p + 1;
-	return filename;
 }
 
 bool my_isfilehidden(const TCHAR *path)
@@ -490,10 +440,5 @@ TCHAR *target_expand_environment(const TCHAR *path, TCHAR *out, int maxlen)
 {
 	if (!path)
 		return NULL;
-	if (out == NULL) {
-		return my_strdup (path);
-	} else {
-		_tcscpy(out, path);
 		return out;
-	}
 }

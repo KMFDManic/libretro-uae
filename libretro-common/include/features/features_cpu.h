@@ -36,7 +36,7 @@ RETRO_BEGIN_DECLS
  *
  * Gets performance counter.
  *
- * @return Performance counter.
+ * Returns: performance counter.
  **/
 retro_perf_tick_t cpu_features_get_perf_counter(void);
 
@@ -46,7 +46,7 @@ retro_perf_tick_t cpu_features_get_perf_counter(void);
  * Gets time in microseconds, from an undefined epoch.
  * The epoch may change between computers or across reboots.
  *
- * @return Time in microseconds
+ * Returns: time in microseconds
  **/
 retro_time_t cpu_features_get_time_usec(void);
 
@@ -55,7 +55,7 @@ retro_time_t cpu_features_get_time_usec(void);
  *
  * Gets CPU features.
  *
- * @return Bitmask of all CPU features available.
+ * Returns: bitmask of all CPU features available.
  **/
 uint64_t cpu_features_get(void);
 
@@ -64,7 +64,7 @@ uint64_t cpu_features_get(void);
  *
  * Gets the amount of available CPU cores.
  *
- * @return Amount of CPU cores available.
+ * Returns: amount of CPU cores available.
  **/
 unsigned cpu_features_get_core_amount(void);
 

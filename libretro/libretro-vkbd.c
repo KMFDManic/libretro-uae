@@ -12,8 +12,7 @@ static bool retro_vkbd_transparent = true;
 signed char retro_vkbd_ready = 0;
 int vkflag[10] = {0};
 
-#define POINTER_DEBUG 0
-#if POINTER_DEBUG
+#ifdef POINTER_DEBUG
 static int pointer_x = 0;
 static int pointer_y = 0;
 #endif
@@ -26,10 +25,6 @@ static int vkbd_x_min = 0;
 static int vkbd_x_max = 0;
 static int vkbd_y_min = 0;
 static int vkbd_y_max = 0;
-
-long vkbd_mapping_active = 0;
-static int vkbd_mapping_key = 0;
-static bool vkbd_mapping_activated = false;
 
 /* VKBD_MIN_HOLDING_TIME: Hold a direction longer than this and automatic movement sets in */
 /* VKBD_MOVE_DELAY: Delay between automatic movement from button to button */
@@ -44,7 +39,7 @@ static long last_press_time = 0;
 static bool let_go_of_button = true;
 static long last_press_time_button = 0;
 static int vkey_pressed = -1;
-static int vkey_sticky  = -1;
+static int vkey_sticky = -1;
 static int vkey_sticky1 = -1;
 static int vkey_sticky2 = -1;
 
@@ -60,20 +55,20 @@ typedef struct
    int value;
 } retro_vkeys;
 
-static const retro_vkeys vkeys[VKBDX * VKBDY * 2] =
+static retro_vkeys vkeys[VKBDX * VKBDY * 2] =
 {
    /* -11 */
-   { {10,'L'},{10,'L'},VKBD_MOUSE_LMB },
-   { {10,'R'},{10,'R'},VKBD_MOUSE_RMB },
-   { {10,30},{10,30},VKBD_MOUSE_UP },
-   { {10,28},{10,28},VKBD_MOUSE_DOWN },
-   { {10,27},{10,27},VKBD_MOUSE_LEFT },
-   { {10,29},{10,29},VKBD_MOUSE_RIGHT },
-   { "J/M" ,"J/M" ,VKBD_JOYMOUSE },
-   { "TRBF","TRBF",VKBD_TURBOFIRE },
-   { "ASPR","CROP",VKBD_ASPECT_CROP },
-   { "STBR","SVDS",VKBD_STATUSBAR_SAVEDISK },
-   { {17}  ,{17}  ,VKBD_RESET },
+   { {10,'L'},{10,'L'},-15 },
+   { {10,'R'},{10,'R'},-16 },
+   { {10,30},{10,30},-11 },
+   { {10,28},{10,28},-12 },
+   { {10,27},{10,27},-13 },
+   { {10,29},{10,29},-14 },
+   { "J/M" ,"J/M" ,-18 },
+   { "TRBF","TRBF",-19 },
+   { "ASPR","ZOOM",-22 },
+   { "STBR","SVDS",-21 },
+   { {17}  ,{17}  ,-20 }, /* Reset */
 
    /* 0 PG1 */
    { "Esc" ,"Esc" ,RETROK_ESCAPE },
@@ -154,7 +149,7 @@ static const retro_vkeys vkeys[VKBDX * VKBDY * 2] =
    { "Help","Help",RETROK_INSERT },
 
    /* 66 */
-   { {15}  ,{15}  ,VKBD_NUMPAD },
+   { {15}  ,{15}  ,-2 }, /* Numpad */
    { "Alt" ,"Alt" ,RETROK_LALT },
    { {14}  ,{14}  ,RETROK_LSUPER },
    { {18}  ,{18}  ,RETROK_SPACE },
@@ -169,17 +164,17 @@ static const retro_vkeys vkeys[VKBDX * VKBDY * 2] =
 
 
    /* -11 */
-   { {10,'L'},{10,'L'},VKBD_MOUSE_LMB },
-   { {10,'R'},{10,'R'},VKBD_MOUSE_RMB },
-   { {10,30},{10,30},VKBD_MOUSE_UP },
-   { {10,28},{10,28},VKBD_MOUSE_DOWN },
-   { {10,27},{10,27},VKBD_MOUSE_LEFT },
-   { {10,29},{10,29},VKBD_MOUSE_RIGHT },
-   { "J/M" ,"J/M" ,VKBD_JOYMOUSE },
-   { "TRBF","TRBF",VKBD_TURBOFIRE },
-   { "ASPR","CROP",VKBD_ASPECT_CROP },
-   { "STBR","SVDS",VKBD_STATUSBAR_SAVEDISK },
-   { {17}  ,{17}  ,VKBD_RESET },
+   { {10,'L'},{10,'L'},-15 },
+   { {10,'R'},{10,'R'},-16 },
+   { {10,30},{10,30},-11 },
+   { {10,28},{10,28},-12 },
+   { {10,27},{10,27},-13 },
+   { {10,29},{10,29},-14 },
+   { "J/M" ,"J/M" ,-18 },
+   { "TRBF","TRBF",-19 },
+   { "ASPR","ZOOM",-22 },
+   { "STBR","SVDS",-21 },
+   { {17}  ,{17}  ,-20 }, /* Reset */
 
    /* 0 PG2 */
    { "Esc" ,"Esc" ,RETROK_ESCAPE },
@@ -260,7 +255,7 @@ static const retro_vkeys vkeys[VKBDX * VKBDY * 2] =
    { "Help","Help",RETROK_INSERT },
 
    /* 66 */
-   { {15}  ,{15}  ,VKBD_NUMPAD },
+   { {15}  ,{15}  ,-2 }, /* Numpad */
    { "Alt" ,"Alt" ,RETROK_LALT },
    { {14}  ,{14}  ,RETROK_LSUPER },
    { {18}  ,{18}  ,RETROK_SPACE },
@@ -273,30 +268,10 @@ static const retro_vkeys vkeys[VKBDX * VKBDY * 2] =
    { {15,29},{15,29},RETROK_KP6 },
 };
 
-
-/* Alternate color keys */
-static const int vkbd_alt_keys[] =
-{
-   RETROK_F1, RETROK_F2, RETROK_F3, RETROK_F4, RETROK_F5, RETROK_F6, RETROK_F7, RETROK_F8, RETROK_F9, RETROK_F10,
-   RETROK_LSHIFT, RETROK_RSHIFT, RETROK_LALT, RETROK_RALT, RETROK_LSUPER, RETROK_RSUPER, VKBD_MOUSE_LMB, VKBD_MOUSE_RMB,
-   RETROK_BACKSPACE, RETROK_DELETE, RETROK_INSERT, RETROK_HOME, RETROK_END,
-   RETROK_ESCAPE, RETROK_BACKQUOTE, RETROK_TAB, RETROK_LCTRL, RETROK_CAPSLOCK, RETROK_RETURN, RETROK_KP_ENTER,
-   RETROK_KP_MINUS, RETROK_KP_PLUS, RETROK_KP_DIVIDE, RETROK_KP_MULTIPLY, RETROK_KP_PERIOD,
-};
-static const int vkbd_alt_keys_len = sizeof(vkbd_alt_keys) / sizeof(vkbd_alt_keys[0]);
-
-/* Extra color keys */
-static const int vkbd_extra_keys[] =
-{
-   VKBD_NUMPAD, VKBD_JOYMOUSE, VKBD_TURBOFIRE, VKBD_ASPECT_CROP, VKBD_STATUSBAR_SAVEDISK
-};
-static const int vkbd_extra_keys_len = sizeof(vkbd_extra_keys) / sizeof(vkbd_extra_keys[0]);
-
 void print_vkbd(void)
 {
    libretro_graph_alpha_t ALPHA      = opt_vkbd_alpha;
    libretro_graph_alpha_t BKG_ALPHA  = ALPHA;
-   libretro_graph_alpha_t BRD_ALPHA  = opt_vkbd_dim_alpha;
    long now                          = retro_ticks() / 1000;
    bool shifted                      = false;
    bool text_outline                 = false;
@@ -370,7 +345,7 @@ void print_vkbd(void)
 
       case 4: /* Light */
          BKG_COLOR_NORMAL  = (pix_bytes == 4) ? COLOR_220_32 : COLOR_220_16;
-         BKG_COLOR_ALT     = (pix_bytes == 4) ? COLOR_160_32 : COLOR_160_16;
+         BKG_COLOR_ALT     = (pix_bytes == 4) ? COLOR_180_32 : COLOR_180_16;
          BKG_COLOR_EXTRA   = (pix_bytes == 4) ? COLOR_100_32 : COLOR_100_16;
          BKG_COLOR_SEL     = (pix_bytes == 4) ? COLOR_40_32 : COLOR_40_16;
          BKG_COLOR_ACTIVE  = (pix_bytes == 4) ? COLOR_250_32 : COLOR_250_16;
@@ -399,17 +374,15 @@ void print_vkbd(void)
          break;
    }
 
-   memset(graphed, 0, sizeof(graphed));
-
    if (video_config_geometry & PUAE_VIDEO_HIRES || video_config_geometry & PUAE_VIDEO_SUPERHIRES)
    {
       FONT_WIDTH         = 2;
       XKEYSPACING        = 2;
       XOFFSET            = -1;
 
-      /* PUAE_VIDEO_HIRES_DOUBLELINE */
       if (video_config_geometry & PUAE_VIDEO_DOUBLELINE)
       {
+         /* PUAE_VIDEO_HIRES_DOUBLELINE */
          FONT_HEIGHT    *= 2;
          YKEYSPACING    *= 2;
          YPADDING       *= 2;
@@ -424,13 +397,11 @@ void print_vkbd(void)
       }
    }
 
-   XOFFSET      += retrox_crop;
-
    int XSIDE     = (320 * FONT_WIDTH) / VKBDX;
-   int YSIDE     = (172 * FONT_HEIGHT) / VKBDY;
+   int YSIDE     = 21 * FONT_HEIGHT;
 
-   XPADDING      = retrow_crop - (XSIDE * VKBDX);
-   YPADDING      = retroh_crop + (retroy_crop * 2) - (YSIDE * VKBDY);
+   XPADDING      = zoomed_width - (XSIDE * VKBDX);
+   YPADDING      = zoomed_height - (YSIDE * VKBDY);
 
    int XBASEKEY  = (XPADDING > 0) ? (XPADDING / 2) : 0;
    int YBASEKEY  = (YPADDING > 0) ? (YPADDING / 2) : 0;
@@ -438,69 +409,74 @@ void print_vkbd(void)
    int XBASETEXT = XBASEKEY + (3 * FONT_WIDTH);
    int YBASETEXT = YBASEKEY + (3 * FONT_HEIGHT);
 
-   int x_gap = 0;
-   int y_gap = 0;
-
-   int vkbd_x_gap_pad = VKBDX_GAP_PAD * FONT_WIDTH;
-   int vkbd_y_gap_pad = VKBDY_GAP_PAD * FONT_HEIGHT;
-
-   XOFFSET -= (vkbd_x_gap_pad / 2);
-   YOFFSET -= (vkbd_y_gap_pad / 2);
-
    /* Coordinates */
    vkbd_x_min = XOFFSET + XBASEKEY + XKEYSPACING;
-   vkbd_x_max = XOFFSET - XBASEKEY - XKEYSPACING + retrow_crop;
+   vkbd_x_max = XOFFSET - XBASEKEY - XKEYSPACING + zoomed_width;
    vkbd_y_min = YOFFSET + YBASEKEY + YKEYSPACING;
    vkbd_y_max = YOFFSET + YBASEKEY + (YSIDE * VKBDY);
-
-   vkbd_x_max += vkbd_x_gap_pad;
-   vkbd_y_max += vkbd_y_gap_pad;
 
    /* Opacity */
    BKG_ALPHA = (retro_vkbd_transparent) ? ALPHA : GRAPH_ALPHA_100;
 
+   /* Alternate color keys */
+   int alt_keys[] =
+   {
+      RETROK_F1, RETROK_F2, RETROK_F3, RETROK_F4, RETROK_F5, RETROK_F6, RETROK_F7, RETROK_F8, RETROK_F9, RETROK_F10,
+      RETROK_LSHIFT, RETROK_RSHIFT, RETROK_LALT, RETROK_RALT, RETROK_LSUPER, RETROK_RSUPER, -15 /*LMB*/, -16 /*RMB*/,
+      RETROK_BACKSPACE, RETROK_DELETE, RETROK_INSERT, RETROK_HOME, RETROK_END,
+      RETROK_ESCAPE, RETROK_BACKQUOTE, RETROK_TAB, RETROK_LCTRL, RETROK_CAPSLOCK, RETROK_RETURN, RETROK_KP_ENTER,
+      RETROK_KP_MINUS, RETROK_KP_PLUS, RETROK_KP_DIVIDE, RETROK_KP_MULTIPLY, RETROK_KP_PERIOD,
+   };
+   int alt_keys_len = sizeof(alt_keys) / sizeof(alt_keys[0]);
+
+   /* Extra color keys */
+   int extra_keys[] =
+   {
+       -2 /*NUMPAD*/, -18 /*J/M*/, -19 /*TRBF*/, -22 /*ASPR/ZOOM*/, -21 /*STBR*/,
+   };
+   int extra_keys_len = sizeof(extra_keys) / sizeof(extra_keys[0]);
+
    /* Key label shifted */
    shifted = false;
-   if (retro_capslock || vkey_sticky1 == RETROK_LSHIFT || vkey_sticky2 == RETROK_LSHIFT
-                      || vkey_sticky1 == RETROK_RSHIFT || vkey_sticky2 == RETROK_RSHIFT)
+   if (retro_capslock || vkey_sticky1 == RETROK_LSHIFT || vkey_sticky2 == RETROK_LSHIFT || vkey_sticky1 == RETROK_RSHIFT || vkey_sticky2 == RETROK_RSHIFT)
       shifted = true;
-   if (vkflag[RETRO_DEVICE_ID_JOYPAD_B] && (vkey_pressed == RETROK_LSHIFT || vkey_pressed == RETROK_RSHIFT))
-      shifted = true;
-   if (retro_key_state_internal[RETROK_LSHIFT] || retro_key_state_internal[RETROK_RSHIFT])
+   if (vkflag[RETRO_DEVICE_ID_JOYPAD_B] == 1 && (vkey_pressed == RETROK_LSHIFT || vkey_pressed == RETROK_RSHIFT))
       shifted = true;
 
    /* Key layout */
    for (x = 0; x < VKBDX; x++)
    {
-      x_gap = 0;
-      if (VKBDX_GAP_POS && VKBDX_GAP_PAD && x >= VKBDX_GAP_POS)
-         x_gap = vkbd_x_gap_pad;
-
       for (y = 0; y < VKBDY; y++)
       {
-         y_gap = 0;
-         if (VKBDY_GAP_POS && VKBDY_GAP_PAD && y >= VKBDY_GAP_POS)
-            y_gap = vkbd_y_gap_pad;
+         /* Skip selected key */
+         if (((vkey_pos_y * VKBDX) + vkey_pos_x + page) == ((y * VKBDX) + x + page))
+            continue;
 
          /* Default key color */
          BKG_COLOR = BKG_COLOR_NORMAL;
          BKG_ALPHA = (retro_vkbd_transparent) ? ALPHA : GRAPH_ALPHA_100;
 
          /* Reset key color */
-         if (vkeys[(y * VKBDX) + x].value == VKBD_RESET)
-            BKG_COLOR = (pix_bytes == 4) ? COLOR_RED_32 : COLOR_RED_16;
+         if (vkeys[(y * VKBDX) + x].value == -20)
+            BKG_COLOR = RGBc(128, 0, 0);
          else
          {
             /* Alternate key color */
-            for (int alt_key = 0; alt_key < vkbd_alt_keys_len; ++alt_key)
-                if (vkbd_alt_keys[alt_key] == vkeys[(y * VKBDX) + x + page].value)
+            for (int alt_key = 0; alt_key < alt_keys_len; ++alt_key)
+                if (alt_keys[alt_key] == vkeys[(y * VKBDX) + x + page].value)
                     BKG_COLOR = BKG_COLOR_ALT;
 
             /* Extra key color */
-            for (int extra_key = 0; extra_key < vkbd_extra_keys_len; ++extra_key)
-                if (vkbd_extra_keys[extra_key] == vkeys[(y * VKBDX) + x + page].value)
+            for (int extra_key = 0; extra_key < extra_keys_len; ++extra_key)
+                if (extra_keys[extra_key] == vkeys[(y * VKBDX) + x + page].value)
                     BKG_COLOR = BKG_COLOR_EXTRA;
          }
+
+         /* Key positions */
+         XKEY  = XOFFSET + XBASEKEY + (x * XSIDE);
+         XTEXT = XOFFSET + XBASETEXT + BKG_PADDING_X + (x * XSIDE);
+         YKEY  = YOFFSET + YBASEKEY + (y * YSIDE);
+         YTEXT = YOFFSET + YBASETEXT + BKG_PADDING_Y + (y * YSIDE);
 
          /* Default font color */
          FONT_COLOR = FONT_COLOR_NORMAL;
@@ -516,7 +492,7 @@ void print_vkbd(void)
           ||(retro_key_state_internal[current_key])
           ||(vkflag[RETRO_DEVICE_ID_JOYPAD_START] && vkeys[(y * VKBDX) + x + page].value == RETROK_RETURN)
           ||(vkflag[RETRO_DEVICE_ID_JOYPAD_X]     && vkeys[(y * VKBDX) + x + page].value == RETROK_SPACE))
-          && BKG_COLOR != BKG_COLOR_EXTRA && vkeys[(y * VKBDX) + x + page].value != VKBD_RESET)
+          && BKG_COLOR != BKG_COLOR_EXTRA && vkeys[(y * VKBDX) + x + page].value != -20)
          {
             FONT_COLOR = FONT_COLOR_NORMAL;
             BKG_COLOR  = BKG_COLOR_ACTIVE;
@@ -536,76 +512,37 @@ void print_vkbd(void)
             }
          }
 
-         /* Key string */
-         snprintf(string, sizeof(string), "%s",
-               (!shifted) ? vkeys[(y * VKBDX) + x + page].normal
-                          : vkeys[(y * VKBDX) + x + page].shift);
+         /* Key background */
+         draw_fbox(XKEY+XKEYSPACING, YKEY+YKEYSPACING, XSIDE-XKEYSPACING, YSIDE-YKEYSPACING,
+                   BKG_COLOR, BKG_ALPHA);
 
-         /* Key positions */
-         XKEY  = x_gap + XOFFSET + XBASEKEY + (x * XSIDE);
-         XTEXT = x_gap + XOFFSET + XBASETEXT + BKG_PADDING_X + (x * XSIDE);
-         YKEY  = y_gap + YOFFSET + YBASEKEY + (y * YSIDE);
-         YTEXT = y_gap + YOFFSET + YBASETEXT + BKG_PADDING_Y + (y * YSIDE);
-
-         /* Empty key */
-         if (vkeys[(y * VKBDX) + x].value == -1)
-         {
-            /* Key background */
-            draw_fbox(XKEY+XKEYSPACING, YKEY+YKEYSPACING,
-                      XSIDE-XKEYSPACING, YSIDE-YKEYSPACING,
-                      0, BRD_ALPHA);
-         }
-         /* Not selected key */
-         else if (((vkey_pos_y * VKBDX) + vkey_pos_x + page) != ((y * VKBDX) + x + page))
-         {
-            int FONT_ALPHA = BKG_ALPHA;
-            FONT_ALPHA = (FONT_ALPHA < GRAPH_ALPHA_25) ? GRAPH_ALPHA_25 : FONT_ALPHA;
-            FONT_ALPHA = (FONT_ALPHA > GRAPH_ALPHA_75) ? GRAPH_ALPHA_75 : FONT_ALPHA;
-
-            /* Key background */
-            draw_fbox(XKEY+XKEYSPACING, YKEY+YKEYSPACING,
-                      XSIDE-XKEYSPACING, YSIDE-YKEYSPACING,
-                      BKG_COLOR, BKG_ALPHA);
-
-            /* Key text */
-            draw_text(XTEXT, YTEXT, FONT_COLOR, BKG_COLOR, FONT_ALPHA,
-                      (text_outline) ? GRAPH_BG_OUTLINE : GRAPH_BG_SHADOW, FONT_WIDTH, FONT_HEIGHT, FONT_MAX,
-                      string);
-         }
-
-         /* Key border */
-         draw_box(XKEY+XKEYSPACING-FONT_WIDTH, YKEY+YKEYSPACING-FONT_HEIGHT,
-                  XSIDE-XKEYSPACING+FONT_WIDTH, YSIDE-YKEYSPACING+FONT_HEIGHT,
-                  FONT_WIDTH, FONT_HEIGHT,
-                  0, BRD_ALPHA);
+         /* Key text */
+         draw_text(XTEXT, YTEXT, FONT_COLOR, BKG_COLOR, GRAPH_ALPHA_25,
+                   (text_outline) ? GRAPH_BG_OUTLINE : GRAPH_BG_SHADOW, FONT_WIDTH, FONT_HEIGHT, FONT_MAX,
+                   (!shifted) ? vkeys[(y * VKBDX) + x + page].normal : vkeys[(y * VKBDX) + x + page].shift);
       }
    }
 
-   /* Opacity */
-   BKG_ALPHA = (retro_vkbd_transparent)
-         ? ((BKG_ALPHA == GRAPH_ALPHA_100) ? GRAPH_ALPHA_100 : GRAPH_ALPHA_75)
-         : GRAPH_ALPHA_100;
+   /* Selected key position */
+   XKEY  = XOFFSET + XBASEKEY + (vkey_pos_x * XSIDE);
+   XTEXT = XOFFSET + XBASETEXT + BKG_PADDING_X + (vkey_pos_x * XSIDE);
+   YKEY  = YOFFSET + YBASEKEY + (vkey_pos_y * YSIDE);
+   YTEXT = YOFFSET + YBASETEXT + BKG_PADDING_Y + (vkey_pos_y * YSIDE);
 
-   /* Selected key */
-   int current_key_pos = (vkey_pos_y * VKBDX) + vkey_pos_x + page;
-   int current_key_val = vkeys[current_key_pos].value;
+   /* Opacity */
+   BKG_ALPHA = (retro_vkbd_transparent) ?
+         ((BKG_ALPHA == GRAPH_ALPHA_100) ? GRAPH_ALPHA_100 : GRAPH_ALPHA_75) : GRAPH_ALPHA_100;
 
    /* Pressed key color */
-   if (vkflag[RETRO_DEVICE_ID_JOYPAD_B] && (current_key_val == vkey_sticky1 ||
-                                            current_key_val == vkey_sticky2))
+   if (vkflag[RETRO_DEVICE_ID_JOYPAD_B] && (vkeys[(vkey_pos_y * VKBDX) + vkey_pos_x + page].value == vkey_sticky1 ||
+                                            vkeys[(vkey_pos_y * VKBDX) + vkey_pos_x + page].value == vkey_sticky2))
       ; /* no-op */
-   else if (vkflag[RETRO_DEVICE_ID_JOYPAD_B] || retro_key_state_internal[(current_key_val > 0) ? current_key_val : 0])
+   else if (vkflag[RETRO_DEVICE_ID_JOYPAD_B])
       BKG_COLOR_SEL = BKG_COLOR_ACTIVE;
    else
       FONT_COLOR = FONT_COLOR_SEL;
 
-   /* Selected key string */
-   snprintf(string, sizeof(string), "%s",
-         (!shifted) ? vkeys[current_key_pos].normal
-                    : vkeys[current_key_pos].shift);
-
-   /* Reset key */
-   if (current_key_val == VKBD_RESET)
+   if (vkeys[(vkey_pos_y * VKBDX) + vkey_pos_x + page].value == -20) /* Reset */
    {
       signed char reset_counter = 0;
       if (last_vkey_pressed_time < now && last_vkey_pressed != -1)
@@ -615,47 +552,24 @@ void print_vkbd(void)
 
       if (last_vkey_pressed != -1 && reset_counter == 0)
       {
-         FONT_COLOR    = (pix_bytes == 4) ? COLOR_WHITE_32 : COLOR_WHITE_16;
-         BKG_COLOR_SEL = (pix_bytes == 4) ? COLOR_RED_32 : COLOR_RED_16;
+         FONT_COLOR = (pix_bytes == 4) ? COLOR_WHITE_32 : COLOR_WHITE_16;
+         BKG_COLOR_SEL = RGBc(128, 0, 0);
       }
 
       if (reset_counter > 0)
          snprintf(string, sizeof(string), "%1d", reset_counter);
+      else
+         snprintf(string, sizeof(string), "%s",
+               (!shifted) ? vkeys[(vkey_pos_y * VKBDX) + vkey_pos_x + page].normal
+                          : vkeys[(vkey_pos_y * VKBDX) + vkey_pos_x + page].shift);
    }
-
-   /* Quick mapping */
-   {
-      if (vkbd_mapping_active && vkbd_mapping_key && (now / 100) % 2 == 0 ||
-          (now - last_vkey_pressed_time > SHORT_PRESS && vkflag[RETRO_DEVICE_ID_JOYPAD_Y]))
-      {
-         FONT_COLOR    = (pix_bytes == 4) ? COLOR_WHITE_32 : COLOR_WHITE_16;
-         BKG_COLOR_SEL = (pix_bytes == 4) ? COLOR_GREEN_32 : COLOR_GREEN_16;
-      }
-
-      if (vkbd_mapping_active && !vkbd_mapping_key && (now / 100) % 2 == 0 ||
-          (now - last_vkey_pressed_time > LONG_PRESS * 2 && vkflag[RETRO_DEVICE_ID_JOYPAD_Y]))
-      {
-         FONT_COLOR    = (pix_bytes == 4) ? COLOR_WHITE_32 : COLOR_WHITE_16;
-         BKG_COLOR_SEL = (pix_bytes == 4) ? COLOR_RED_32 : COLOR_RED_16;
-      }
-   }
-
-   x_gap = 0;
-   if (VKBDX_GAP_POS && VKBDX_GAP_PAD && vkey_pos_x >= VKBDX_GAP_POS)
-      x_gap = vkbd_x_gap_pad;
-   y_gap = 0;
-   if (VKBDY_GAP_POS && VKBDY_GAP_PAD && vkey_pos_y >= VKBDY_GAP_POS)
-      y_gap = vkbd_y_gap_pad;
-
-   /* Selected key position */
-   XKEY  = x_gap + XOFFSET + XBASEKEY + (vkey_pos_x * XSIDE);
-   XTEXT = x_gap + XOFFSET + XBASETEXT + BKG_PADDING_X + (vkey_pos_x * XSIDE);
-   YKEY  = y_gap + YOFFSET + YBASEKEY + (vkey_pos_y * YSIDE);
-   YTEXT = y_gap + YOFFSET + YBASETEXT + BKG_PADDING_Y + (vkey_pos_y * YSIDE);
+   else
+      snprintf(string, sizeof(string), "%s",
+            (!shifted) ? vkeys[(vkey_pos_y * VKBDX) + vkey_pos_x + page].normal
+                       : vkeys[(vkey_pos_y * VKBDX) + vkey_pos_x + page].shift);
 
    /* Selected key background */
-   draw_fbox(XKEY+XKEYSPACING, YKEY+YKEYSPACING,
-             XSIDE-XKEYSPACING, YSIDE-YKEYSPACING,
+   draw_fbox(XKEY+XKEYSPACING, YKEY+YKEYSPACING, XSIDE-XKEYSPACING, YSIDE-YKEYSPACING,
              BKG_COLOR_SEL, BKG_ALPHA);
 
    /* Selected key text */
@@ -663,61 +577,7 @@ void print_vkbd(void)
              GRAPH_BG_NONE, FONT_WIDTH, FONT_HEIGHT, FONT_MAX,
              string);
 
-   if (BRD_ALPHA == GRAPH_ALPHA_0)
-      return;
-
-   /* Gap backgrounds */
-   if (VKBDX_GAP_POS)
-      draw_fbox(XOFFSET+XBASEKEY+(VKBDX_GAP_POS * XSIDE)+FONT_WIDTH, vkbd_y_min-FONT_HEIGHT,
-                vkbd_x_gap_pad-FONT_WIDTH, vkbd_y_max-vkbd_y_min+(FONT_HEIGHT * 2),
-                0, BRD_ALPHA);
-
-   if (VKBDY_GAP_POS)
-   {
-      unsigned lores_offset = (retrow_crop < 361 && retrow_crop % 2 == 0);
-
-      draw_fbox(vkbd_x_min-FONT_WIDTH, YOFFSET+YBASEKEY+(VKBDY_GAP_POS * YSIDE)+FONT_HEIGHT,
-                vkbd_x_max-vkbd_x_min+(FONT_WIDTH * 2)+XKEYSPACING+((lores_offset) ? -XKEYSPACING : 0), vkbd_y_gap_pad-FONT_HEIGHT,
-                0, BRD_ALPHA);
-#if 0
-      draw_fbox(XOFFSET+XBASEKEY+(VKBDX_GAP_POS * XSIDE)+vkbd_x_gap_pad, YOFFSET+YBASEKEY+(VKBDY_GAP_POS * YSIDE)+FONT_HEIGHT,
-                XSIDE+FONT_WIDTH, vkbd_y_gap_pad-FONT_HEIGHT,
-                0, BRD_ALPHA);
-#endif
-   }
-
-   /* Corner dimming */
-   {
-      unsigned corner_y_min = 0;
-      unsigned corner_y_max = 0;
-      unsigned lores_offset = (retrow_crop < 361 && retrow_crop % 2 == 0);
-
-      /* Top */
-      corner_y_min = 0;
-      corner_y_max = vkbd_y_min - YKEYSPACING;
-      draw_fbox(0, corner_y_min,
-                retrow, corner_y_max,
-                0, BRD_ALPHA);
-
-      /* Bottom */
-      corner_y_min = vkbd_y_max + YKEYSPACING;
-      corner_y_max = retroh - vkbd_y_max - YKEYSPACING;
-      draw_fbox(0, corner_y_min,
-                retrow, corner_y_max,
-                0, BRD_ALPHA);
-
-      /* Left + Right */
-      corner_y_min = vkbd_y_min - YKEYSPACING;
-      corner_y_max = vkbd_y_max - vkbd_y_min + (YKEYSPACING * 2);
-      draw_fbox(0, corner_y_min,
-                vkbd_x_min - XKEYSPACING, corner_y_max,
-                0, BRD_ALPHA);
-      draw_fbox(vkbd_x_max + (XKEYSPACING * 2) + ((lores_offset) ? -XKEYSPACING : 0), corner_y_min,
-                retrow - vkbd_x_max - (XKEYSPACING * (lores_offset ? 1 : 2)), corner_y_max,
-                0, BRD_ALPHA);
-   }
-
-#if POINTER_DEBUG
+#ifdef POINTER_DEBUG
    draw_hline(pointer_x, pointer_y, 1, 1, RGBc(255, 0, 255));
 #endif
 }
@@ -741,17 +601,17 @@ static void input_vkbd_sticky(void)
    {
       if (last_vkey_pressed < -10)
       {
-         if (last_vkey_pressed == VKBD_MOUSE_LMB)
+         if (last_vkey_pressed == -15)
          {
             retro_mouse_button(0, 0, 0);
             mflag[0][RETRO_DEVICE_ID_JOYPAD_B] = 0;
          }
-         else if (last_vkey_pressed == VKBD_MOUSE_RMB)
+         else if (last_vkey_pressed == -16)
          {
             retro_mouse_button(0, 1, 0);
             mflag[0][RETRO_DEVICE_ID_JOYPAD_A] = 0;
          }
-         else if (last_vkey_pressed == VKBD_MOUSE_MMB)
+         else if (last_vkey_pressed == -17)
          {
             retro_mouse_button(0, 2, 0);
             mflag[0][RETRO_DEVICE_ID_JOYPAD_Y] = 0;
@@ -773,265 +633,14 @@ static void input_vkbd_sticky(void)
    {
       vkey_sticky1_release = 0;
       vkey_sticky1 = -1;
+      retro_key_up(vkey_sticky1);
    }
    if (vkey_sticky2_release)
    {
       vkey_sticky2_release = 0;
       vkey_sticky2 = -1;
+      retro_key_up(vkey_sticky2);
    }
-}
-
-static void convert_vkbd_to_mapper(int *vkbd_mapping_key, char **var_value)
-{
-   bool shifted = retro_capslock
-         || retro_key_state_internal[RETROK_LSHIFT]
-         || retro_key_state_internal[RETROK_RSHIFT];
-
-   /* Convert VKBD special keys to mapper special keys */
-   switch (*vkbd_mapping_key)
-   {
-      case VKBD_MOUSE_LMB:
-         *var_value = strdup("MOUSE_LEFT_BUTTON");
-         *vkbd_mapping_key = MOUSE_LEFT_BUTTON;
-         break;
-      case VKBD_MOUSE_RMB:
-         *var_value = strdup("MOUSE_RIGHT_BUTTON");
-         *vkbd_mapping_key = MOUSE_RIGHT_BUTTON;
-         break;
-      case VKBD_MOUSE_UP:
-      case VKBD_MOUSE_DOWN:
-      case VKBD_MOUSE_LEFT:
-      case VKBD_MOUSE_RIGHT:
-      case VKBD_NUMPAD:
-         *var_value = strdup("");
-         *vkbd_mapping_key = 0;
-         break;
-
-      case VKBD_STATUSBAR_SAVEDISK:
-         if (shifted)
-         {
-            *var_value = get_variable("puae_mapper_save_disk_toggle");
-            *vkbd_mapping_key = 0;
-         }
-         else
-         {
-            *var_value = strdup("TOGGLE_STATUSBAR");
-            *vkbd_mapping_key = TOGGLE_STATUSBAR;
-         }
-         break;
-      case VKBD_ASPECT_CROP:
-         if (shifted)
-         {
-            *var_value = get_variable("puae_mapper_crop_toggle");
-            *vkbd_mapping_key = 0;
-         }
-         else
-         {
-            *var_value = get_variable("puae_mapper_aspect_ratio_toggle");
-            *vkbd_mapping_key = 0;
-         }
-         break;
-      case VKBD_JOYMOUSE:
-         *var_value = strdup("SWITCH_JOYMOUSE");
-         *vkbd_mapping_key = SWITCH_JOYMOUSE;
-         break;
-      case VKBD_TURBOFIRE:
-         *var_value = get_variable("puae_mapper_turbo_fire_toggle");
-         *vkbd_mapping_key = 0;
-         break;
-      case VKBD_RESET:
-         *var_value = get_variable("puae_mapper_reset");
-         *vkbd_mapping_key = 0;
-         break;
-      case VKBD_CAPSLOCK:
-         *var_value = strdup("RETROK_CAPSLOCK");
-         *vkbd_mapping_key = RETROK_CAPSLOCK;
-         break;
-
-      default:
-         *var_value = strdup(retro_keymap_value(*vkbd_mapping_key));
-         break;
-   }
-}
-
-static bool input_vkbd_mapper(void)
-{
-   long now                 = retro_ticks() / 1000;
-   static int joypad_button = -1;
-   const int threshold      = 20000;
-
-   if (!vkbd_mapping_active)
-      return false;
-
-   /* Init */
-   if (vkbd_mapping_activated)
-   {
-      int converted_key = vkbd_mapping_key;
-      char *converted_label;
-
-      converted_label        = '\0';
-      vkbd_mapping_activated = false;
-
-      convert_vkbd_to_mapper(&converted_key, &converted_label);
-      if (string_is_empty(converted_label))
-      {
-         statusbar_message_show(9, "Unable to map!");
-
-         free(converted_label);
-         converted_label = NULL;
-         goto reset;
-      }
-
-      statusbar_message_show(9, "Press button for \"%s\"",
-            (converted_key) ? retro_keymap_label(converted_key) : converted_label);
-
-      free(converted_label);
-      converted_label = NULL;
-   }
-   /* Waiting for input */
-   else if (joypad_button < 0)
-   {
-      unsigned i = 0, j = 0;
-
-      int duration                 = now - vkbd_mapping_active;
-      int max_duration             = 3000;
-      int duration_sec             = (max_duration + 1000 - duration) / 1000;
-      static int duration_sec_prev = 0;
-
-      for (j = 0; j < 2; j++)
-      {
-         for (i = 0; i < RETRO_DEVICE_ID_JOYPAD_LAST; i++)
-         {
-            switch (i)
-            {
-               case RETRO_DEVICE_ID_JOYPAD_LR:
-                  if (joypad_axis[j][AXIS_LX] > threshold)
-                     joypad_button = i;
-                  break;
-               case RETRO_DEVICE_ID_JOYPAD_LL:
-                  if (joypad_axis[j][AXIS_LX] < -threshold)
-                     joypad_button = i;
-                  break;
-               case RETRO_DEVICE_ID_JOYPAD_LD:
-                  if (joypad_axis[j][AXIS_LY] > threshold)
-                     joypad_button = i;
-                  break;
-               case RETRO_DEVICE_ID_JOYPAD_LU:
-                  if (joypad_axis[j][AXIS_LY] < -threshold)
-                     joypad_button = i;
-                  break;
-
-               case RETRO_DEVICE_ID_JOYPAD_RR:
-                  if (joypad_axis[j][AXIS_RX] > threshold)
-                     joypad_button = i;
-                  break;
-               case RETRO_DEVICE_ID_JOYPAD_RL:
-                  if (joypad_axis[j][AXIS_RX] < -threshold)
-                     joypad_button = i;
-                  break;
-               case RETRO_DEVICE_ID_JOYPAD_RD:
-                  if (joypad_axis[j][AXIS_RY] > threshold)
-                     joypad_button = i;
-                  break;
-               case RETRO_DEVICE_ID_JOYPAD_RU:
-                  if (joypad_axis[j][AXIS_RY] < -threshold)
-                     joypad_button = i;
-                  break;
-
-               default:
-                  if (joypad_bits[j] & (1 << i))
-                     joypad_button = i;
-                  break;
-            }
-         }
-      }
-
-      if (duration_sec != duration_sec_prev)
-      {
-         duration_sec_prev = duration_sec;
-         if (duration_sec < 3)
-            statusbar_message_show(9, "Press button for %d..", duration_sec);
-      }
-
-      /* Don't wait forever */
-      if (duration > max_duration)
-         goto reset;
-   }
-   /* Process selection after all buttons are released */
-   else if (joypad_button > -1 && !joypad_bits[0] && !joypad_bits[1] &&
-         abs(joypad_axis[0][AXIS_LX]) < threshold && abs(joypad_axis[0][AXIS_LY]) < threshold &&
-         abs(joypad_axis[0][AXIS_RX]) < threshold && abs(joypad_axis[0][AXIS_RY]) < threshold &&
-         abs(joypad_axis[1][AXIS_LX]) < threshold && abs(joypad_axis[1][AXIS_LY]) < threshold &&
-         abs(joypad_axis[1][AXIS_RX]) < threshold && abs(joypad_axis[1][AXIS_RY]) < threshold)
-   {
-      char var_key[64];
-      char prefix[32];
-      char *var_value;
-
-      var_value = '\0';
-      snprintf(prefix, sizeof(prefix), "%s", "puae_mapper_");
-
-      /* Build core option key */
-      switch (joypad_button)
-      {
-         case RETRO_DEVICE_ID_JOYPAD_UP: snprintf(var_key, sizeof(var_key), "%s%s", prefix, "up"); break;
-         case RETRO_DEVICE_ID_JOYPAD_DOWN: snprintf(var_key, sizeof(var_key), "%s%s", prefix, "down"); break;
-         case RETRO_DEVICE_ID_JOYPAD_LEFT: snprintf(var_key, sizeof(var_key), "%s%s", prefix, "left"); break;
-         case RETRO_DEVICE_ID_JOYPAD_RIGHT: snprintf(var_key, sizeof(var_key), "%s%s", prefix, "right"); break;
-         case RETRO_DEVICE_ID_JOYPAD_B: snprintf(var_key, sizeof(var_key), "%s%s", prefix, "b"); break;
-         case RETRO_DEVICE_ID_JOYPAD_Y: snprintf(var_key, sizeof(var_key), "%s%s", prefix, "y"); break;
-         case RETRO_DEVICE_ID_JOYPAD_A: snprintf(var_key, sizeof(var_key), "%s%s", prefix, "a"); break;
-         case RETRO_DEVICE_ID_JOYPAD_X: snprintf(var_key, sizeof(var_key), "%s%s", prefix, "x"); break;
-         case RETRO_DEVICE_ID_JOYPAD_L: snprintf(var_key, sizeof(var_key), "%s%s", prefix, "l"); break;
-         case RETRO_DEVICE_ID_JOYPAD_R: snprintf(var_key, sizeof(var_key), "%s%s", prefix, "r"); break;
-         case RETRO_DEVICE_ID_JOYPAD_L2: snprintf(var_key, sizeof(var_key), "%s%s", prefix, "l2"); break;
-         case RETRO_DEVICE_ID_JOYPAD_R2: snprintf(var_key, sizeof(var_key), "%s%s", prefix, "r2"); break;
-         case RETRO_DEVICE_ID_JOYPAD_L3: snprintf(var_key, sizeof(var_key), "%s%s", prefix, "l3"); break;
-         case RETRO_DEVICE_ID_JOYPAD_R3: snprintf(var_key, sizeof(var_key), "%s%s", prefix, "r3"); break;
-         case RETRO_DEVICE_ID_JOYPAD_LU: snprintf(var_key, sizeof(var_key), "%s%s", prefix, "lu"); break;
-         case RETRO_DEVICE_ID_JOYPAD_LD: snprintf(var_key, sizeof(var_key), "%s%s", prefix, "ld"); break;
-         case RETRO_DEVICE_ID_JOYPAD_LL: snprintf(var_key, sizeof(var_key), "%s%s", prefix, "ll"); break;
-         case RETRO_DEVICE_ID_JOYPAD_LR: snprintf(var_key, sizeof(var_key), "%s%s", prefix, "lr"); break;
-         case RETRO_DEVICE_ID_JOYPAD_RU: snprintf(var_key, sizeof(var_key), "%s%s", prefix, "ru"); break;
-         case RETRO_DEVICE_ID_JOYPAD_RD: snprintf(var_key, sizeof(var_key), "%s%s", prefix, "rd"); break;
-         case RETRO_DEVICE_ID_JOYPAD_RL: snprintf(var_key, sizeof(var_key), "%s%s", prefix, "rl"); break;
-         case RETRO_DEVICE_ID_JOYPAD_RR: snprintf(var_key, sizeof(var_key), "%s%s", prefix, "rr"); break;
-         case RETRO_DEVICE_ID_JOYPAD_SELECT: snprintf(var_key, sizeof(var_key), "%s%s", prefix, "select"); break;
-         case RETRO_DEVICE_ID_JOYPAD_START: snprintf(var_key, sizeof(var_key), "%s%s", prefix, "start"); break;
-      }
-
-      /* Prevent locked-up states */
-      if (   (joypad_button == RETRO_DEVICE_ID_JOYPAD_Y && vkbd_mapping_key < 0) ||
-            !strcmp(get_variable(var_key), "TOGGLE_VKBD"))
-      {
-         statusbar_message_show(9, "Illegal mapping combo!");
-
-         free(var_value);
-         var_value = NULL;
-         goto reset;
-      }
-
-      convert_vkbd_to_mapper(&vkbd_mapping_key, &var_value);
-      set_variable(var_key, var_value);
-
-      statusbar_message_show(9, "RetroPad %s = \"%s\"",
-            string_to_upper(&var_key[12]),
-            (vkbd_mapping_key) ? retro_keymap_label(vkbd_mapping_key) : var_value);
-
-      free(var_value);
-      var_value = NULL;
-      goto reset;
-   }
-
-   return true;
-
-reset:
-   vkbd_mapping_active = 0;
-   vkbd_mapping_key    = -1;
-   joypad_button       = -1;
-   retro_vkbd_ready    = -2;
-
-   return true;
 }
 
 void toggle_vkbd(void)
@@ -1044,23 +653,14 @@ void toggle_vkbd(void)
    retro_vkbd_ready = -2;
    /* Release VKBD controllable joypads */
    memset(joypad_bits, 0, 2*sizeof(joypad_bits[0]));
-#ifdef ANDROID
-   /* Discard mouse input for x frames, thanks to Android
-    * input driver doing ghost mouse clicks.. */
-   if (!retro_vkbd)
-      retro_mouse_discard = 20;
-#endif
 }
 
 void input_vkbd(void)
 {
-   long now  = 0;
-   uint8_t i = 0;
+   long now = 0;
+   unsigned int i = 0;
 
    input_vkbd_sticky();
-
-   if (input_vkbd_mapper())
-      return;
 
    if (!retro_vkbd)
       return;
@@ -1076,49 +676,44 @@ void input_vkbd(void)
 
    now = retro_ticks() / 1000;
 
+   /* VKBD Mouse acceleration */
+   const int mspeed_default = 2;
+   static int mspeed;
+   if (!vkflag[RETRO_DEVICE_ID_JOYPAD_B])
+      mspeed = mspeed_default;
+
    /* Absolute pointer */
    int p_x = input_state_cb(0, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_X);
    int p_y = input_state_cb(0, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_Y);
 
    if (p_x != 0 && p_y != 0 && (p_x != last_pointer_x || p_y != last_pointer_y))
    {
-      int px = (int)((p_x + 0x7fff) * retrow_crop / 0xffff + retrox_crop);
-      int py = (int)((p_y + 0x7fff) * retroh_crop / 0xffff + retroy_crop);
-
+      int px = (int)((p_x + 0x7fff) * zoomed_width / 0xffff);
+      int py = (int)((p_y + 0x7fff) * zoomed_height / 0xffff);
       last_pointer_x = p_x;
       last_pointer_y = p_y;
-
+#ifdef POINTER_DEBUG
+      pointer_x = px;
+      pointer_y = py;
+#endif
       if (px >= vkbd_x_min && px <= vkbd_x_max && py >= vkbd_y_min && py <= vkbd_y_max)
       {
-         float x_multiplier = (video_config & PUAE_VIDEO_SUPERHIRES) ? 4 : (video_config & PUAE_VIDEO_HIRES) ? 2 : 1;
-         float vkey_width = (float)(vkbd_x_max - vkbd_x_min - (VKBDX_GAP_PAD * x_multiplier)) / VKBDX;
+         float vkey_width = (float)(vkbd_x_max - vkbd_x_min) / VKBDX;
          vkey_pos_x = ((px - vkbd_x_min) / vkey_width);
-         if (VKBDX_GAP_POS && vkey_pos_x >= VKBDX_GAP_POS)
-            vkey_pos_x = ((px - vkbd_x_min + (VKBDX_GAP_PAD * x_multiplier)) / vkey_width);
 
-         float y_multiplier = (video_config & PUAE_VIDEO_DOUBLELINE) ? 2 : 1;
-         float vkey_height = (float)(vkbd_y_max - vkbd_y_min - (VKBDY_GAP_PAD * y_multiplier)) / VKBDY;
+         float vkey_height = (float)(vkbd_y_max - vkbd_y_min) / VKBDY;
          vkey_pos_y = ((py - vkbd_y_min) / vkey_height);
-         if (VKBDY_GAP_POS && vkey_pos_y >= VKBDY_GAP_POS)
-            vkey_pos_y = ((py - vkbd_y_min - (VKBDY_GAP_PAD * y_multiplier)) / vkey_height);
 
          vkey_pos_x = (vkey_pos_x < 0) ? 0 : vkey_pos_x;
          vkey_pos_x = (vkey_pos_x > VKBDX - 1) ? VKBDX - 1 : vkey_pos_x;
          vkey_pos_y = (vkey_pos_y < 0) ? 0 : vkey_pos_y;
          vkey_pos_y = (vkey_pos_y > VKBDY - 1) ? VKBDY - 1 : vkey_pos_y;
-      }
-#if POINTER_DEBUG
-      pointer_x = px;
-      pointer_y = py;
-      printf("px:%d py:%d (%d,%d) vkey:%dx%d\n", p_x, p_y, px, py, vkey_pos_x, vkey_pos_y);
-#endif
-   }
 
-   /* VKBD Mouse acceleration */
-   const int mspeed_default = 2;
-   static int mspeed;
-   if (!vkflag[RETRO_DEVICE_ID_JOYPAD_B])
-      mspeed = mspeed_default;
+#ifdef POINTER_DEBUG
+         printf("px:%d py:%d (%d,%d) vkey:%dx%d\n", p_x, p_y, px, py, vkey_pos_x, vkey_pos_y);
+#endif
+      }
+   }
 
    /* Press Return, RetroPad Start */
    i = RETRO_DEVICE_ID_JOYPAD_START;
@@ -1137,39 +732,19 @@ void input_vkbd(void)
       retro_key_up(RETROK_RETURN);
    }
 
-   /* Toggle CapsLock / Quick mapper, RetroPad Y */
+   /* Toggle CapsLock, RetroPad Y */
    i = RETRO_DEVICE_ID_JOYPAD_Y;
    if (!vkflag[i] && mapper_keys[i] >= 0 && ((joypad_bits[0] & (1 << i)) ||
                                              (joypad_bits[1] & (1 << i))))
    {
       vkflag[i] = 1;
-      vkey_pressed = vkeys[(vkey_pos_y * VKBDX) + vkey_pos_x + ((retro_vkbd_page) ? VKBDX * VKBDY : 0)].value;
-      vkbd_mapping_key = vkey_pressed;
-
-      last_vkey_pressed = vkey_pressed;
-      last_vkey_pressed_time = now;
+      retro_capslock = !retro_capslock;
    }
    else
    if (vkflag[i] && (!(joypad_bits[0] & (1 << i)) &&
                      !(joypad_bits[1] & (1 << i))))
    {
       vkflag[i] = 0;
-
-      if (now - last_vkey_pressed_time < SHORT_PRESS)
-      {
-         retro_capslock = !retro_capslock;
-      }
-      else
-      {
-         vkbd_mapping_active = now;
-         vkbd_mapping_activated = true;
-
-         /* Clear button with very long press */
-         if (now - last_vkey_pressed_time > LONG_PRESS * 2)
-            vkbd_mapping_key = 0;
-      }
-
-      vkey_pressed = -1;
    }
 
    /* Press Space, RetroPad X */
@@ -1213,98 +788,105 @@ void input_vkbd(void)
       vkflag[i] = 1;
       vkey_pressed = vkeys[(vkey_pos_y * VKBDX) + vkey_pos_x + ((retro_vkbd_page) ? VKBDX * VKBDY : 0)].value;
 
-      if (vkey_pressed != -1 && last_vkey_pressed == -1)
+      if (vkey_pressed == -1)
+         last_vkey_pressed = -1;
+      else if (vkey_pressed == -2)
       {
-         bool shifted = retro_capslock
-               || retro_key_state_internal[RETROK_LSHIFT]
-               || retro_key_state_internal[RETROK_RSHIFT];
+         last_vkey_pressed = -1;
+         retro_vkbd_page = !retro_vkbd_page;
+      }
+      else if (vkey_pressed < -10)
+      {
+         last_vkey_pressed = vkey_pressed;
+         last_vkey_pressed_time = now;
 
-         switch (vkey_pressed)
+         if (vkey_pressed == -11) /* Mouse up */
          {
-            case VKBD_NUMPAD:
-               retro_vkbd_page = !retro_vkbd_page;
-               break;
-            case VKBD_RESET: /* Reset on release */
-               break;
-            case VKBD_STATUSBAR_SAVEDISK:
-               if (shifted)
-                  emu_function(EMU_SAVE_DISK);
-               else
-                  emu_function(EMU_STATUSBAR);
-               break;
-            case VKBD_JOYMOUSE:
-               emu_function(EMU_JOYMOUSE);
-               break;
-            case VKBD_TURBOFIRE:
-               emu_function(EMU_TURBO_FIRE);
-               break;
-            case VKBD_ASPECT_CROP:
-               if (shifted)
-                  emu_function(EMU_CROP);
-               else
-                  emu_function(EMU_ASPECT_RATIO);
-               break;
-            case VKBD_CAPSLOCK:
-               retro_key_down(RETROK_CAPSLOCK);
-               retro_key_up(RETROK_CAPSLOCK);
-               break;
-
-            case VKBD_MOUSE_UP:
-               retro_mouse(0, 0, -3);
-               mflag[0][RETRO_DEVICE_ID_JOYPAD_UP] = 1;
-               break;
-            case VKBD_MOUSE_DOWN:
-               retro_mouse(0, 0, 3);
-               mflag[0][RETRO_DEVICE_ID_JOYPAD_DOWN] = 1;
-               break;
-            case VKBD_MOUSE_LEFT:
-               retro_mouse(0, -3, 0);
-               mflag[0][RETRO_DEVICE_ID_JOYPAD_LEFT] = 1;
-               break;
-            case VKBD_MOUSE_RIGHT:
-               retro_mouse(0, 3, 0);
-               mflag[0][RETRO_DEVICE_ID_JOYPAD_RIGHT] = 1;
-               break;
-            case VKBD_MOUSE_LMB:
-               retro_mouse_button(0, 0, 1);
-               mflag[0][RETRO_DEVICE_ID_JOYPAD_B] = 1;
-               break;
-            case VKBD_MOUSE_RMB:
-               retro_mouse_button(0, 1, 1);
-               mflag[0][RETRO_DEVICE_ID_JOYPAD_A] = 1;
-               break;
-            case VKBD_MOUSE_MMB:
-               retro_mouse_button(0, 2, 1);
-               mflag[0][RETRO_DEVICE_ID_JOYPAD_Y] = 1;
-               break;
-
-            default:
-               if (vkey_pressed == RETROK_CAPSLOCK)
-               {
-                  retro_key_down(vkey_pressed);
-                  retro_key_up(vkey_pressed);
-                  retro_capslock = !retro_capslock;
-                  last_vkey_pressed = -1;
-               }
-               else
-               {
-                  if (retro_capslock)
-                     retro_key_down(RETROK_LSHIFT);
-
-                  if (vkey_pressed == vkey_sticky1)
-                     vkey_sticky1_release = 1;
-                  if (vkey_pressed == vkey_sticky2)
-                     vkey_sticky2_release = 1;
-
-                  if (vkey_pressed != vkey_sticky1 && vkey_pressed != vkey_sticky2)
-                     retro_key_down(vkey_pressed);
-               }
-               break;
+            retro_mouse(0, 0, -3);
+            mflag[0][RETRO_DEVICE_ID_JOYPAD_UP] = 1;
+         }
+         else if (vkey_pressed == -12) /* Mouse down */
+         {
+            retro_mouse(0, 0, 3);
+            mflag[0][RETRO_DEVICE_ID_JOYPAD_DOWN] = 1;
+         }
+         else if (vkey_pressed == -13) /* Mouse left */
+         {
+            retro_mouse(0, -3, 0);
+            mflag[0][RETRO_DEVICE_ID_JOYPAD_LEFT] = 1;
+         }
+         else if (vkey_pressed == -14) /* Mouse right */
+         {
+            retro_mouse(0, 3, 0);
+            mflag[0][RETRO_DEVICE_ID_JOYPAD_RIGHT] = 1;
+         }
+         else if (vkey_pressed == -15) /* LMB */
+         {
+            retro_mouse_button(0, 0, 1);
+            mflag[0][RETRO_DEVICE_ID_JOYPAD_B] = 1;
+         }
+         else if (vkey_pressed == -16) /* RMB */
+         {
+            retro_mouse_button(0, 1, 1);
+            mflag[0][RETRO_DEVICE_ID_JOYPAD_A] = 1;
+         }
+         else if (vkey_pressed == -17) /* MMB */
+         {
+            retro_mouse_button(0, 2, 1);
+            mflag[0][RETRO_DEVICE_ID_JOYPAD_Y] = 1;
+         }
+         else if (vkey_pressed == -18) /* Toggle joystick/mouse */
+         {
+            emu_function(EMU_JOYMOUSE);
+         }
+         else if (vkey_pressed == -19) /* Toggle turbo fire */
+         {
+            emu_function(EMU_TURBO_FIRE);
+         }
+         else if (vkey_pressed == -20) /* Reset */
+         {
+            /* Reset on release */
+         }
+         else if (vkey_pressed == -21) /* Toggle statusbar / save disk */
+         {
+            if (retro_capslock)
+               emu_function(EMU_SAVE_DISK);
+            else
+               emu_function(EMU_STATUSBAR);
+         }
+         else if (vkey_pressed == -22) /* Toggle aspect ratio / zoom mode */
+         {
+            if (retro_capslock)
+               emu_function(EMU_ZOOM_MODE);
+            else
+               emu_function(EMU_ASPECT_RATIO);
          }
       }
+      else
+      {
+         if (vkey_pressed == RETROK_CAPSLOCK)
+         {
+            retro_key_down(vkey_pressed);
+            retro_key_up(vkey_pressed);
+            retro_capslock = !retro_capslock;
+            last_vkey_pressed = -1;
+         }
+         else
+         {
+            last_vkey_pressed = vkey_pressed;
+            if (retro_capslock)
+               retro_key_down(RETROK_LSHIFT);
 
-      last_vkey_pressed = vkey_pressed;
-      last_vkey_pressed_time = now;
+            if (!vkey_sticky)
+            {
+               if (vkey_pressed == vkey_sticky1)
+                  vkey_sticky1_release = 1;
+               if (vkey_pressed == vkey_sticky2)
+                  vkey_sticky2_release = 1;
+            }
+            retro_key_down(vkey_pressed);
+         }
+      }
    }
    else
    if (vkflag[i] && (!(joypad_bits[0] & (1 << i)) &&
@@ -1315,27 +897,24 @@ void input_vkbd(void)
       vkey_pressed = -1;
       vkflag[i] = 0;
 
-      if (last_vkey_pressed >= VKBD_MOUSE_UP && last_vkey_pressed < VKBD_MOUSE_RMB)
+      if (last_vkey_pressed > -10 && last_vkey_pressed < -15)
       {
          mspeed = mspeed_default;
 
-         if (vkey_pressed == VKBD_MOUSE_UP) /* Mouse up */
+         if (vkey_pressed == -11) /* Mouse up */
             mflag[0][RETRO_DEVICE_ID_JOYPAD_UP] = 0;
-         else if (vkey_pressed == VKBD_MOUSE_DOWN) /* Mouse down */
+         else if (vkey_pressed == -12) /* Mouse down */
             mflag[0][RETRO_DEVICE_ID_JOYPAD_DOWN] = 0;
-         else if (vkey_pressed == VKBD_MOUSE_LEFT) /* Mouse left */
+         else if (vkey_pressed == -13) /* Mouse left */
             mflag[0][RETRO_DEVICE_ID_JOYPAD_LEFT] = 0;
-         else if (vkey_pressed == VKBD_MOUSE_RIGHT) /* Mouse right */
+         else if (vkey_pressed == -14) /* Mouse right */
             mflag[0][RETRO_DEVICE_ID_JOYPAD_RIGHT] = 0;
       }
-      else if (last_vkey_pressed == VKBD_RESET)
+      else if (last_vkey_pressed == -20)
       {
          /* Reset on long press */
          if (now - last_vkey_pressed_time > VKBD_STICKY_HOLDING_TIME)
             emu_function(EMU_RESET);
-         /* Freeze on short press */
-         else
-            emu_function(EMU_FREEZE);
       }
    }
    else
@@ -1344,7 +923,7 @@ void input_vkbd(void)
                      input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_RETURN) ||
                      input_state_cb(0, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_PRESSED)))
    {
-      if (last_vkey_pressed != VKBD_RESET)
+      if (last_vkey_pressed != -20)
       {
          if (now - last_vkey_pressed_time > 200)
          {
@@ -1352,13 +931,13 @@ void input_vkbd(void)
             last_vkey_pressed_time = now;
          }
 
-         if (vkey_pressed == VKBD_MOUSE_UP) /* Mouse up */
+         if (vkey_pressed == -11) /* Mouse up */
             retro_mouse(0, 0, -mspeed);
-         else if (vkey_pressed == VKBD_MOUSE_DOWN) /* Mouse down */
+         else if (vkey_pressed == -12) /* Mouse down */
             retro_mouse(0, 0, mspeed);
-         else if (vkey_pressed == VKBD_MOUSE_LEFT) /* Mouse left */
+         else if (vkey_pressed == -13) /* Mouse left */
             retro_mouse(0, -mspeed, 0);
-         else if (vkey_pressed == VKBD_MOUSE_RIGHT) /* Mouse right */
+         else if (vkey_pressed == -14) /* Mouse right */
             retro_mouse(0, mspeed, 0);
       }
    }
@@ -1441,33 +1020,17 @@ void input_vkbd(void)
         && now - last_move_time > VKBD_MOVE_DELAY)
         || let_go_of_direction)
       {
-         bool searching = true;
          last_move_time = now;
 
-         /* Handle skipping of empty keys */
-         while (searching)
-         {
-            if (vkflag[RETRO_DEVICE_ID_JOYPAD_UP])
-               vkey_pos_y -= 1;
-            else if (vkflag[RETRO_DEVICE_ID_JOYPAD_DOWN])
-               vkey_pos_y += 1;
+         if (vkflag[RETRO_DEVICE_ID_JOYPAD_UP])
+            vkey_pos_y -= 1;
+         else if (vkflag[RETRO_DEVICE_ID_JOYPAD_DOWN])
+            vkey_pos_y += 1;
 
-            if (vkflag[RETRO_DEVICE_ID_JOYPAD_LEFT])
-               vkey_pos_x -= 1;
-            else if (vkflag[RETRO_DEVICE_ID_JOYPAD_RIGHT])
-               vkey_pos_x += 1;
-
-            if (vkey_pos_x < 0)
-               vkey_pos_x = VKBDX - 1;
-            else if (vkey_pos_x > VKBDX - 1)
-               vkey_pos_x = 0;
-            if (vkey_pos_y < 0)
-               vkey_pos_y = VKBDY - 1;
-            else if (vkey_pos_y > VKBDY - 1)
-               vkey_pos_y = 0;
-
-            searching = (vkeys[(vkey_pos_y * VKBDX) + vkey_pos_x + ((retro_vkbd_page) ? VKBDX * VKBDY : 0)].value == -1);
-         }
+         if (vkflag[RETRO_DEVICE_ID_JOYPAD_LEFT])
+            vkey_pos_x -= 1;
+         else if (vkflag[RETRO_DEVICE_ID_JOYPAD_RIGHT])
+            vkey_pos_x += 1;
       }
       let_go_of_direction = false;
    }

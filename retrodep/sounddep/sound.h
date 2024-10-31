@@ -1,16 +1,15 @@
  /* 
   * UAE - The Un*x Amiga Emulator
   * 
-  * Support for libretro sound
+  * Support for the Mute sound system.
   * 
   * Copyright 1997 Bernd Schmidt
   */
 
 #ifndef OSDEP_SOUND_H
 #define OSDEP_SOUND_H
-
 #define SOUNDSTUFF 1
-extern void retro_audio_queue(const int16_t *data, int32_t samples);
+extern void retro_audio_render(const int16_t *data, size_t frames);
 
 #define sndbuffer paula_sndbuffer
 #define sndbufpt paula_sndbufpt
@@ -22,25 +21,18 @@ extern int paula_sndbufsize;
 extern void driveclick_mix (uae_s16*, int, int);
 
 extern int soundcheck;
-extern int active_sound_stereo;
-
-static __inline__ void flush_sound_buffers(int32_t min_bytes_required)
-{
-    int32_t available_bytes = (char *)sndbufpt - (char *)sndbuffer;
-
-    if (available_bytes >= min_bytes_required) {
-        int32_t available_samples = available_bytes / sizeof(*sndbuffer);
-#ifdef DRIVESOUND
-        driveclick_mix((uae_s16 *)sndbuffer, available_samples, currprefs.dfxclickchannelmask);
-#endif
-        retro_audio_queue((short *)sndbuffer, available_samples);
-        sndbufpt = sndbuffer;
-    }
-}
 
 static __inline__ void check_sound_buffers (void)
 {
-    flush_sound_buffers(sndbufsize);
+    unsigned int size = (char *)sndbufpt - (char *)sndbuffer;
+
+    if (size >= sndbufsize) {
+#ifdef DRIVESOUND
+        driveclick_mix ((uae_s16*)sndbuffer, sndbufsize >> 1, currprefs.dfxclickchannelmask);
+#endif	
+        retro_audio_render((short*)sndbuffer, sndbufsize >> 1);
+        sndbufpt = sndbuffer;
+    }
 }
 
 STATIC_INLINE void set_sound_buffers (void)
@@ -53,14 +45,8 @@ STATIC_INLINE void clear_sound_buffers (void)
 	sndbufpt = sndbuffer;
 }
 
-extern void restart_sound_buffer (void);
-extern void pause_sound_buffer (void);
-extern void resume_sound (void);
-extern void pause_sound (void);
-extern void reset_sound (void);
-extern void sound_mute (int);
-extern void sound_volume (int);
-extern void master_sound_volume (int);
+void pause_sound_buffer (void);
+void restart_sound_buffer (void);
 
 #define AUDIO_NAME "retroaudio"
 
@@ -78,18 +64,12 @@ extern void master_sound_volume (int);
 #define SOUND8_BASE_VAL 128
 
 #define DEFAULT_SOUND_MAXB 4096
-#define DEFAULT_SOUND_MINB 1764
+#define DEFAULT_SOUND_MINB 256
 #define DEFAULT_SOUND_BITS 16
 #define DEFAULT_SOUND_FREQ 44100
 
 #define HAVE_STEREO_SUPPORT
 
-#define FILTER_SOUND_OFF 0
-#define FILTER_SOUND_EMUL 1
-#define FILTER_SOUND_ON 2
-
-#define FILTER_SOUND_TYPE_A500 0
-#define FILTER_SOUND_TYPE_A1200 1
-#define FILTER_SOUND_TYPE_A500_FIXEDONLY 2
+#define DEFAULT_SOUND_LATENCY 50
 
 #endif

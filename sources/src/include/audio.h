@@ -9,47 +9,57 @@
 #ifndef UAE_AUDIO_H
 #define UAE_AUDIO_H
 
-#include "uae/types.h"
-
 #define PERIOD_MAX ULONG_MAX
 #define MAX_EV ~0u
 
-void AUDxDAT (int nr, uae_u16 value);
-void AUDxDAT_addr (int nr, uae_u16 value, uaecptr addr);
-void AUDxVOL (int nr, uae_u16 value);
-void AUDxPER (int nr, uae_u16 value);
-void AUDxLCH (int nr, uae_u16 value);
-void AUDxLCL (int nr, uae_u16 value);
-void AUDxLEN (int nr, uae_u16 value);
+extern void pause_sound (void);
+extern void resume_sound (void);
 
-uae_u16 audio_dmal (void);
-void audio_state_machine (void);
-uaecptr audio_getpt (int nr, bool reset);
-int init_audio (void);
-void audio_reset (void);
-void update_audio (void);
-void audio_evhandler (void);
-void audio_hsync (void);
-void audio_update_adkmasks (void);
-void update_sound (float clk);
-void update_cda_sound (float clk);
-void led_filter_audio (void);
-void set_audio (void);
-int audio_activate (void);
-void audio_deactivate (void);
-void audio_vsync (void);
-void audio_sampleripper(int);
-void write_wavheader (struct zfile *wavfile, size_t size, uae_u32 freq);
+extern void aud0_handler (void);
+extern void aud1_handler (void);
+extern void aud2_handler (void);
+extern void aud3_handler (void);
 
-int audio_is_pull(void);
-int audio_pull_buffer(void);
-bool audio_finish_pull(void);
-bool audio_is_pull_event(void);
-bool audio_is_event_frame_possible(int);
+extern void AUDxDAT (int nr, uae_u16 value);
+extern void AUDxDAT_addr (int nr, uae_u16 value, uaecptr addr);
+extern void AUDxVOL (int nr, uae_u16 value);
+extern void AUDxPER (int nr, uae_u16 value);
+extern void AUDxLCH (int nr, uae_u16 value);
+extern void AUDxLCL (int nr, uae_u16 value);
+extern void AUDxLEN (int nr, uae_u16 value);
 
+extern uae_u16 audio_dmal (void);
+extern void audio_state_machine (void);
+extern uaecptr audio_getpt (int nr, bool reset);
+
+extern int init_audio (void);
+extern void ahi_install (void);
+extern void audio_reset (void);
+extern void update_audio (void);
+extern void audio_evhandler (void);
+extern void audio_hsync (void);
+extern void audio_update_adkmasks (void);
+extern void update_sound (double clk);
+extern void update_cda_sound (double clk);
+extern void led_filter_audio (void);
+extern void set_audio (void);
+extern int audio_activate (void);
+extern void audio_deactivate (void);
+extern void audio_vsync (void);
+
+void switch_audio_interpol (void);
+extern int sound_available;
+
+extern void audio_sampleripper(int);
 extern int sampleripper_enabled;
+extern void write_wavheader (struct zfile *wavfile, uae_u32 size, uae_u32 freq);
 
-typedef void(*CDA_CALLBACK)(int, void*);
+extern void audio_update_sndboard(unsigned int);
+extern void audio_enable_sndboard(bool);
+extern void audio_state_sndboard(int);
+extern void audio_state_sndboard_state(int, int, unsigned int);
+
+typedef void (*CDA_CALLBACK)(int, void*);
 typedef bool(*SOUND_STREAM_CALLBACK)(int, void*);
 
 extern int audio_enable_stream(bool, int, int, SOUND_STREAM_CALLBACK, void*);
@@ -62,7 +72,7 @@ struct cd_audio_state
 	CDA_CALLBACK cda_next_cd_audio_buffer_callback;
 	void *cb_data;
 	int cda_volume[2];
-	int cda_streamid/* = -1*/;
+	int cda_streamid;// = -1;
 };
 
 extern void audio_cda_new_buffer(struct cd_audio_state *cas, uae_s16 *buffer, int length, int userdata, CDA_CALLBACK next_cd_audio_buffer_callback, void *cb_data);
@@ -77,21 +87,19 @@ extern int sound_paula_volume[2];
 #define AUDIO_CHANNELS_PAULA 4
 
 enum {
-	SND_MONO,
-	SND_STEREO,
-	SND_4CH_CLONEDSTEREO,
-	SND_4CH,
-	SND_6CH_CLONEDSTEREO,
-	SND_6CH,
-	SND_8CH_CLONEDSTEREO,
-	SND_8CH,
-	SND_NONE
+    SND_MONO,
+    SND_STEREO,
+    SND_4CH_CLONEDSTEREO,
+    SND_4CH,
+    SND_6CH_CLONEDSTEREO,
+    SND_6CH,
+    SND_NONE
 };
 
-static inline int get_audio_stereomode (int channels)
+STATIC_INLINE int get_audio_stereomode (int channels)
 {
-	switch (channels)
-	{
+    switch (channels)
+    {
 	case 1:
 		return SND_MONO;
 	case 2:
@@ -100,32 +108,29 @@ static inline int get_audio_stereomode (int channels)
 		return SND_4CH;
 	case 6:
 		return SND_6CH;
-	case 8:
-		return SND_8CH;
-	}
-	return SND_STEREO;
+    }
+    return SND_STEREO;
 }
-
 STATIC_INLINE int get_audio_nativechannels (int stereomode)
 {
-	int ch[] = { 1, 2, 4, 4, 6, 6, 8, 8, 0 };
-	return ch[stereomode];
+    int ch[] = { 1, 2, 4, 4, 6, 6, 0 };
+    return ch[stereomode];
 }
-
 STATIC_INLINE int get_audio_amigachannels (int stereomode)
 {
-	int ch[] = { 1, 2, 2, 4, 2, 4, 2, 4, 0 };
-	return ch[stereomode];
+    int ch[] = { 1, 2, 2, 4, 2, 4, 0 };
+    return ch[stereomode];
 }
-
 STATIC_INLINE int get_audio_ismono (int stereomode)
 {
-	return stereomode == 0;
+    return stereomode == 0;
 }
 
 #define SOUND_MAX_DELAY_BUFFER 1024
 #define SOUND_MAX_LOG_DELAY 10
 #define MIXED_STEREO_MAX 16
 #define MIXED_STEREO_SCALE 32
+
+void devices_update_sound(double clk, double syncadjust);
 
 #endif /* UAE_AUDIO_H */

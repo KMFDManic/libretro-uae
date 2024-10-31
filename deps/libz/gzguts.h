@@ -6,6 +6,8 @@
 #ifndef _GZGUTS_H
 #define _GZGUTS_H
 
+#define NO_GZCOMPRESS
+
 #ifdef _LARGEFILE64_SOURCE
 #  ifndef _LARGEFILE_SOURCE
 #    define _LARGEFILE_SOURCE 1

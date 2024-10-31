@@ -1,18 +1,20 @@
 
 /*
-*     xDMS  v1.3  -  Portable DMS archive unpacker  -  Public Domain
-*     Written by     Andre Rodrigues de la Rocha  <adlroc@usa.net>
-*
-*     Lempel-Ziv-Huffman decompression functions used in Heavy 1 & 2
-*     compression modes. Based on LZH decompression functions from
-*     UNIX LHA made by Masaru Oki
-*
-*/
+ *     xDMS  v1.3  -  Portable DMS archive unpacker  -  Public Domain
+ *     Written by     Andre Rodrigues de la Rocha  <adlroc@usa.net>
+ *
+ *     Lempel-Ziv-Huffman decompression functions used in Heavy 1 & 2
+ *     compression modes. Based on LZH decompression functions from
+ *     UNIX LHA made by Masaru Oki
+ *
+ */
+
 
 #include "cdata.h"
 #include "u_heavy.h"
 #include "getbits.h"
 #include "maketbl.h"
+
 
 #define NC 510
 #define NPT 20
@@ -25,12 +27,19 @@ static USHORT c_table[4096], pt_table[256];
 USHORT dms_lastlen, dms_np;
 USHORT dms_heavy_text_loc;
 
+
 static USHORT read_tree_c(void);
 static USHORT read_tree_p(void);
-static USHORT decode_c(void);
-static USHORT decode_p(void);
+#ifdef __PS3__
+INLINE USHORT decode_c(void);
+INLINE USHORT decode_p(void);
+#else
+USHORT decode_c(void);
+USHORT decode_p(void);
+#endif
 
-USHORT Unpack_HEAVY(UCHAR *in, UCHAR *out, UCHAR flags, USHORT pklen1, USHORT origsize){
+
+USHORT Unpack_HEAVY(UCHAR *in, UCHAR *out, UCHAR flags, USHORT origsize){
 	USHORT j, i, c, bitmask;
 	UCHAR *outend;
 
@@ -64,13 +73,12 @@ USHORT Unpack_HEAVY(UCHAR *in, UCHAR *out, UCHAR flags, USHORT pklen1, USHORT or
 		}
 	}
 
-	in += pklen1;
-	if (dms_indata == in + 2 || dms_indata == in + 1 || dms_indata == in + 0) return 0;
-
-	return 1;
+	return 0;
 }
 
-static USHORT decode_c(void){
+
+
+INLINE USHORT decode_c(void){
 	USHORT i, j, m;
 
 	j = c_table[GETBITS(12)];
@@ -90,7 +98,9 @@ static USHORT decode_c(void){
 	return j;
 }
 
-static USHORT decode_p(void){
+
+
+INLINE USHORT decode_p(void){
 	USHORT i, j, m;
 
 	j = pt_table[GETBITS(8)];
@@ -120,6 +130,8 @@ static USHORT decode_p(void){
 
 }
 
+
+
 static USHORT read_tree_c(void){
 	USHORT i,n;
 
@@ -140,6 +152,8 @@ static USHORT read_tree_c(void){
 	}
 	return 0;
 }
+
+
 
 static USHORT read_tree_p(void){
 	USHORT i,n;

@@ -1,7 +1,5 @@
-*.d
 *.o
 *.so
 *.a
 
 *.dll
-sources/gen/

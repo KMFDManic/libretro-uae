@@ -16,13 +16,21 @@
 #include "u_deep.h"
 #include "getbits.h"
 
-static USHORT DecodeChar(void);
-static USHORT DecodePosition(void);
-static void update(USHORT c);
+#ifdef __PS3__
+INLINE USHORT DecodeChar(void);
+INLINE USHORT DecodePosition(void);
+INLINE void update(USHORT c);
+#else
+USHORT DecodeChar(void);
+USHORT DecodePosition(void);
+void update(USHORT c);
 static void reconst(void);
+#endif
 
 USHORT dms_deep_text_loc;
 int dms_init_deep_tabs=1;
+
+
 
 #define DBITMASK 0x3fff   /*  uses 16Kb dictionary  */
 
@@ -33,6 +41,7 @@ int dms_init_deep_tabs=1;
 #define R       (T - 1)         /* position of root */
 #define MAX_FREQ    0x8000      /* updates tree when the */
 
+
 static USHORT freq[T + 1]; /* frequency table */
 
 static USHORT prnt[T + N_CHAR]; /* pointers to parent nodes, except for the */
@@ -41,7 +50,9 @@ static USHORT prnt[T + N_CHAR]; /* pointers to parent nodes, except for the */
 
 static USHORT son[T];   /* pointers to child nodes (son[], son[] + 1) */
 
-static void Init_DEEP_Tabs(void){
+
+
+void Init_DEEP_Tabs(void){
 	USHORT i, j;
 
 	for (i = 0; i < N_CHAR; i++) {
@@ -62,7 +73,9 @@ static void Init_DEEP_Tabs(void){
 	dms_init_deep_tabs = 0;
 }
 
-USHORT Unpack_DEEP(UCHAR *in, UCHAR *out, USHORT pklen1, USHORT origsize){
+
+
+USHORT Unpack_DEEP(UCHAR *in, UCHAR *out, USHORT origsize){
 	USHORT i, j, c;
 	UCHAR *outend;
 
@@ -84,13 +97,12 @@ USHORT Unpack_DEEP(UCHAR *in, UCHAR *out, USHORT pklen1, USHORT origsize){
 
 	dms_deep_text_loc = (USHORT)((dms_deep_text_loc+60) & DBITMASK);
 
-	in += pklen1;
-	if (dms_indata == in + 2 || dms_indata == in + 1 || dms_indata == in + 0) return 0;
-
-	return 1;
+	return 0;
 }
 
-static USHORT DecodeChar(void){
+
+
+INLINE USHORT DecodeChar(void){
 	USHORT c;
 
 	c = son[R];
@@ -107,7 +119,9 @@ static USHORT DecodeChar(void){
 	return c;
 }
 
-static USHORT DecodePosition(void){
+
+
+INLINE USHORT DecodePosition(void){
 	USHORT i, j, c;
 
 	i = GETBITS(8);  DROPBITS(8);
@@ -117,6 +131,8 @@ static USHORT DecodePosition(void){
 
 	return (USHORT) (c | i) ;
 }
+
+
 
 /* reconstruction of tree */
 
@@ -155,9 +171,11 @@ static void reconst(void){
 	}
 }
 
+
+
 /* increment frequency of given code by one, and update tree */
 
-static void update(USHORT c){
+INLINE void update(USHORT c){
 	USHORT i, j, k, l;
 
 	if (freq[R] == MAX_FREQ) {
@@ -189,3 +207,5 @@ static void update(USHORT c){
 		}
 	} while ((c = prnt[c]) != 0); /* repeat up to root */
 }
+
+
