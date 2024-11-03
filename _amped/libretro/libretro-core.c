@@ -480,10 +480,10 @@ static void retro_set_core_options()
          NULL,
          {
             { "auto", "Automatic" },
-            { "A500OG", "A500 (v1.2, 0.5M Chip)" },
-            { "A500", "A500 (v1.3, 0.5M Chip + 0.5M Slow)" },
-            { "A500PLUS", "A500+ (v2.04, 1M Chip)" },
-            { "A600", "A600 (v3.1, 2M Chip + 8M Fast)" },
+            { "A500CHIPONLY", "A500 (OCS 0.5MB Chip)" },
+            { "A500CHIP&SLOW", "A500 (OCS 0.5MB Chip 1.7MB Slow)" },
+            { "A500PLUSCHIPONLY", "A500+ (ECS 1MB Chip" },
+            { "A500PLUSCHIP&SLOW", "A500+ (ECS 1MB Chip 1 MB Slow)" },
             { "A1200OG", "A1200 (v3.1, 2M Chip)" },
             { "A1200", "A1200 (v3.1, 2M Chip + 8M Fast)" },
             { "A2000OG", "A2000 (v1.2, 0.5M Chip + 0.5M Slow)" },
@@ -519,10 +519,10 @@ static void retro_set_core_options()
          NULL,
          "model",
          {
-            { "A500OG", "A500 (v1.2, 0.5M Chip)" },
-            { "A500", "A500 (v1.3, 0.5M Chip + 0.5M Slow)" },
-            { "A500PLUS", "A500+ (v2.04, 1M Chip)" },
-            { "A600", "A600 (v3.1, 2M Chip + 8M Fast)" },
+            { "A500CHIPONLY", "A500 (OSC 0.5MB Chip)" },
+            { "A500CHIP&SLOW", "A500 (OCS 0.5MB Chip 1.7MB Slow)" },
+            { "A500PLUSCHIPONLY", "A500+ (ECS 1MB Chip)" },
+            { "A500PLUSCHIP&SLOW", "A500+ (ECS 1MB Chip 1MB Slow)" },
             { "A1200OG", "A1200 (v3.1, 2M Chip)" },
             { "A1200", "A1200 (v3.1, 2M Chip + 8M Fast)" },
             { "A2000OG", "A2000 (v1.2, 0.5M Chip + 0.5M Slow)" },
@@ -541,7 +541,7 @@ static void retro_set_core_options()
          NULL,
          "model",
          {
-            { "A600", "A600 (v3.1, 2M Chip + 8M Fast)" },
+            { "A500PLUSCHIP&SLOW", "A500+ (ECS 1MB Chip 1MB Slow)" },
             { "A1200OG", "A1200 (v3.1, 2M Chip)" },
             { "A1200", "A1200 (v3.1, 2M Chip + 8M Fast)" },
             { "A2000", "A2000 (v3.1, 1M Chip)" },
@@ -4902,10 +4902,10 @@ static char* emu_config_string(char *mode, int config)
    {
       switch (config)
       {
-         case EMU_CONFIG_A500:      return "A500";
-         case EMU_CONFIG_A500OG:    return "A500OG";
-         case EMU_CONFIG_A500PLUS:  return "A500PLUS";
-         case EMU_CONFIG_A600:      return "A600";
+         case EMU_CONFIG_A500CHIPONLY:      return "A500CHIPONLY";
+         case EMU_CONFIG_A500CHIP&SLOW:    return "A500CHIP&SLOW";
+         case EMU_CONFIG_A500PLUSCHIPONLY:  return "A500PLUSCHIPONLY";
+         case EMU_CONFIG_A500PLUSCHIP&SLOW:      return "A500PLUSCHIP&SLOW";
          case EMU_CONFIG_A1200:     return "A1200";
          case EMU_CONFIG_A1200OG:   return "A1200OG";
          case EMU_CONFIG_A2000:     return "A2000";
@@ -4921,10 +4921,10 @@ static char* emu_config_string(char *mode, int config)
    {
       switch (config)
       {
-         case EMU_CONFIG_A500:      return uae_kickstarts[A500_KS13_ROM].normal;
-         case EMU_CONFIG_A500OG:    return uae_kickstarts[A500_KS12_ROM].normal;
-         case EMU_CONFIG_A500PLUS:  return uae_kickstarts[A500_KS204_ROM].normal;
-         case EMU_CONFIG_A600:      return uae_kickstarts[A600_KS31_ROM].normal;
+         case EMU_CONFIG_A500CHIPONLY:      return uae_kickstarts[A500_KS13_ROM].normal;
+         case EMU_CONFIG_A500CHIP&SLOW:    return uae_kickstarts[A500_KS12_ROM].normal;
+         case EMU_CONFIG_A500PLUSCHIPONLY:  return uae_kickstarts[A500_KS204_ROM].normal;
+         case EMU_CONFIG_A500PLUSCHIP&SLOW:      return uae_kickstarts[A600_KS31_ROM].normal;
          case EMU_CONFIG_A1200:     return uae_kickstarts[A1200_KS31_ROM].normal;
          case EMU_CONFIG_A1200OG:   return uae_kickstarts[A1200_KS31_ROM].normal;
          case EMU_CONFIG_A2000:     return uae_kickstarts[A600_KS31_ROM].normal;
@@ -4951,10 +4951,10 @@ static char* emu_config_string(char *mode, int config)
 
 static int emu_config_int(char *model)
 {
-   if      (!strcmp(model, "A500"))      return EMU_CONFIG_A500;
-   else if (!strcmp(model, "A500OG"))    return EMU_CONFIG_A500OG;
-   else if (!strcmp(model, "A500PLUS"))  return EMU_CONFIG_A500PLUS;
-   else if (!strcmp(model, "A600"))      return EMU_CONFIG_A600;
+   if      (!strcmp(model, "A500CHIPONLY"))      return EMU_CONFIG_A500CHIPONLY;
+   else if (!strcmp(model, "A500CHIP&SLOW"))    return EMU_CONFIG_A500CHIP&SLOW;
+   else if (!strcmp(model, "A500PLUSCHIPONLY"))  return EMU_CONFIG_A500PLUSCHIPONLY;
+   else if (!strcmp(model, "A500PLUSCHIP&SLOW"))      return EMU_CONFIG_A500PLUSCHIP&SLOW;
    else if (!strcmp(model, "A1200"))     return EMU_CONFIG_A1200;
    else if (!strcmp(model, "A1200OG"))   return EMU_CONFIG_A1200OG;
    else if (!strcmp(model, "A2000"))     return EMU_CONFIG_A2000;
@@ -4997,15 +4997,7 @@ static char* emu_config(int config)
     */
    switch (config)
    {
-      case EMU_CONFIG_A500: return
-         "cpu_model=68000\n"
-         "chipset=ocs\n"
-         "chipset_compatible=A500\n"
-         "chipmem_size=1\n"
-         "bogomem_size=2\n"
-         "fastmem_size=0\n";
-
-      case EMU_CONFIG_A500OG: return
+      case EMU_CONFIG_A500CHIPONLY: return
          "cpu_model=68000\n"
          "chipset=ocs\n"
          "chipset_compatible=A500\n"
@@ -5013,7 +5005,15 @@ static char* emu_config(int config)
          "bogomem_size=0\n"
          "fastmem_size=0\n";
 
-      case EMU_CONFIG_A500PLUS: return
+      case EMU_CONFIG_A500CHIP&SLOW: return
+         "cpu_model=68000\n"
+         "chipset=ocs\n"
+         "chipset_compatible=A500\n"
+         "chipmem_size=1\n"
+         "bogomem_size=7\n"
+         "fastmem_size=0\n";
+
+      case EMU_CONFIG_A500PLUSCHIPONLY: return
          "cpu_model=68000\n"
          "chipset=ecs\n"
          "chipset_compatible=A500+\n"
@@ -5021,13 +5021,13 @@ static char* emu_config(int config)
          "bogomem_size=0\n"
          "fastmem_size=0\n";
 
-      case EMU_CONFIG_A600: return
+      case EMU_CONFIG_A500PLUSCHIPANDSLOW: return
          "cpu_model=68000\n"
          "chipset=ecs\n"
-         "chipset_compatible=A600\n"
-         "chipmem_size=4\n"
-         "bogomem_size=0\n"
-         "fastmem_size=8\n";
+         "chipset_compatible=A500+\n"
+         "chipmem_size=2\n"
+         "bogomem_size=4\n"
+         "fastmem_size=0\n";
 
       case EMU_CONFIG_A1200: return
          "cpu_model=68020\n"
@@ -5288,25 +5288,25 @@ static bool retro_create_config(void)
                log_cb(RETRO_LOG_INFO, "Found '(A1200)', 'AGA', 'CD32', or 'AmigaCD' in: '%s'\n", full_path);
                retro_config_preset("A1200");
             }
-            else if (strstr(full_path, "(A600)") || strstr(full_path, "ECS"))
+            else if (strstr(full_path, "(A500PLUSCHIP&SLOW)") || strstr(full_path, "ECS"))
             {
-               log_cb(RETRO_LOG_INFO, "Found '(A600)' or 'ECS' in: '%s'\n", full_path);
-               retro_config_preset("A600");
+               log_cb(RETRO_LOG_INFO, "Found '(A500PLUSCHIP&SLOW)' or 'ECS' in: '%s'\n", full_path);
+               retro_config_preset("A500PLUSCHIP&SLOW");
             }
-            else if (strstr(full_path, "(A500+)") || strstr(full_path, "(A500PLUS)"))
+            else if (strstr(full_path, "(A500+)") || strstr(full_path, "(A500PLUSCHIPONLY)"))
             {
-               log_cb(RETRO_LOG_INFO, "Found '(A500+)' or '(A500PLUS)' in: '%s'\n", full_path);
-               retro_config_preset("A500PLUS");
+               log_cb(RETRO_LOG_INFO, "Found '(A500+)' or '(A500PLUSCHIPONLY)' in: '%s'\n", full_path);
+               retro_config_preset("A500PLUSCHIPONLY");
             }
-            else if (strstr(full_path, "(A500OG)") || strstr(full_path, "(512K)"))
+            else if (strstr(full_path, "(A500CHIP&SLOW)") || strstr(full_path, "(512K)"))
             {
-               log_cb(RETRO_LOG_INFO, "Found '(A500OG)' or '(512K)' in: '%s'\n", full_path);
-               retro_config_preset("A500OG");
+               log_cb(RETRO_LOG_INFO, "Found '(A500CHIP&SLOW)' or '(512K)' in: '%s'\n", full_path);
+               retro_config_preset("A500CHIP&SLOW");
             }
-            else if (strstr(full_path, "(A500)") || strstr(full_path, "OCS"))
+            else if (strstr(full_path, "(A500CHIPONLY)") || strstr(full_path, "OCS"))
             {
-               log_cb(RETRO_LOG_INFO, "Found '(A500)' or 'OCS' in: '%s'\n", full_path);
-               retro_config_preset("A500");
+               log_cb(RETRO_LOG_INFO, "Found '(A500CHIPONLY)' or 'OCS' in: '%s'\n", full_path);
+               retro_config_preset("A500CHIPONLY");
             }
             else
             {
