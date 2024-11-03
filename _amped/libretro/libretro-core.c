@@ -480,22 +480,22 @@ static void retro_set_core_options()
          NULL,
          {
             { "auto", "Automatic" },
-            { "A500CHIPONLY", "A500 (OCS 0.5MB Chip)" },
-            { "A500CHIP&SLOW", "A500 (OCS 0.5MB Chip 1.7MB Slow)" },
-            { "A500PLUSCHIPONLY", "A500+ (ECS 1MB Chip" },
-            { "A500PLUSCHIP&SLOW", "A500+ (ECS 1MB Chip 1 MB Slow)" },
-            { "A1200OG", "A1200 (v3.1, 2M Chip)" },
-            { "A1200", "A1200 (v3.1, 2M Chip + 8M Fast)" },
-            { "A2000OG", "A2000 (v1.2, 0.5M Chip + 0.5M Slow)" },
-            { "A2000", "A2000 (v3.1, 1M Chip)" },
-            { "A4030", "A4000/030 (v3.1, 2M Chip + 8M Fast)" },
-            { "A4040", "A4000/040 (v3.1, 2M Chip + 8M Fast)" },
+            { "A500OG", "A500 (OCS 0.5MB Chip)" },
+            { "A500", "A500 (OCS 0.5MB Chip 1.7MB Slow)" },
+            { "A500PLUS", "A500+ (ECS 1MB Chip 1MB Slow)" },
+            { "A600", "A500+ (ECS 1MB)" },
+            { "A1200OG", "A600 (ECS 2MB Chip 8MB Fast)" },
+            { "A1200", "A600 (ECS 2MB Chip)" },
+            { "A2000OG", "A1200 (AGA 2MB Chip 8MB Fast)" },
+            { "A2000", "A1200 (AGA 2MB Chip)" },
+            { "A4030", "A1200/030 (AGA 2MB Chip 8MB Fast)" },
+            { "A4040", "A1200/030 (AGA FPU 2MB Chip 8MB Fast)" },
             { "CDTV", "CDTV (1M Chip)" },
             { "CD32", "CD32 (2M Chip)" },
             { "CD32FR", "CD32 (2M Chip + 8M Fast)" },
             { NULL, NULL },
          },
-         "auto"
+         "A2000OG"
       },
       {
          "puae_model_options_display",
@@ -509,7 +509,7 @@ static void retro_set_core_options()
             { "enabled", NULL },
             { NULL, NULL },
          },
-         "disabled"
+         "enabled"
       },
       {
          "puae_model_fd",
@@ -519,16 +519,16 @@ static void retro_set_core_options()
          NULL,
          "model",
          {
-            { "A500CHIPONLY", "A500 (OSC 0.5MB Chip)" },
-            { "A500CHIP&SLOW", "A500 (OCS 0.5MB Chip 1.7MB Slow)" },
-            { "A500PLUSCHIPONLY", "A500+ (ECS 1MB Chip)" },
-            { "A500PLUSCHIP&SLOW", "A500+ (ECS 1MB Chip 1MB Slow)" },
-            { "A1200OG", "A1200 (v3.1, 2M Chip)" },
-            { "A1200", "A1200 (v3.1, 2M Chip + 8M Fast)" },
-            { "A2000OG", "A2000 (v1.2, 0.5M Chip + 0.5M Slow)" },
-            { "A2000", "A2000 (v3.1, 1M Chip)" },
-            { "A4030", "A4000/030 (v3.1, 2M Chip + 8M Fast)" },
-            { "A4040", "A4000/040 (v3.1, 2M Chip + 8M Fast)" },
+            { "A500OG", "A500 (OCS 0.5MB Chip 1.7MB Fast)" },
+            { "A500", "A500 (OCS 0.5MB Chip)" },
+            { "A500PLUS", "A500+ (ECS 1MB Chip 1MB Slow)" },
+            { "A600", "A500+ (ECS 1MB Chip)" },
+            { "A1200OG", "A600 (ECS 2MB Chip 8MB Fast)" },
+            { "A1200", "A600 (ECS 2MB Chip)" },
+            { "A2000OG", "A1200 (AGA 2MB Chip)" },
+            { "A2000", "A1200 (AGA 2MB Chip 8MB Fast)" },
+            { "A4030", "A1200/030 (AGA FPU 2MB Chip 8MB Fast)" },
+            { "A4040", "A1200/030 (AGA 2MB Chip 8MB Fast)" },
             { NULL, NULL },
          },
          "A500"
@@ -541,12 +541,12 @@ static void retro_set_core_options()
          NULL,
          "model",
          {
-            { "A500PLUSCHIP&SLOW", "A500+ (ECS 1MB Chip 1MB Slow)" },
-            { "A1200OG", "A1200 (v3.1, 2M Chip)" },
-            { "A1200", "A1200 (v3.1, 2M Chip + 8M Fast)" },
-            { "A2000", "A2000 (v3.1, 1M Chip)" },
-            { "A4030", "A4000/030 (v3.1, 2M Chip + 8M Fast)" },
-            { "A4040", "A4000/040 (v3.1, 2M Chip + 8M Fast)" },
+            { "A600", "A500+ (ECS 1MB Chip)" },
+            { "A1200OG", "A600 (ECS 2MB Chip)" },
+            { "A1200", "A600 (ECS 2MB Chip 8MB Fast)" },
+            { "A2000", "A1200 (AGA 2MB Chip 8MB Fast)" },
+            { "A4030", "A1200/030 (AGA FPU 2MB Chip 8MB Fast)" },
+            { "A4040", "A1200/030 (AGA 2MB Chip 8MB Fast)" },
             { NULL, NULL },
          },
          "A1200"
@@ -671,7 +671,7 @@ static void retro_set_core_options()
             { "cd", "Compact discs only" },
             { NULL, NULL },
          },
-         "disabled"
+         "enabled"
       },
       {
          "puae_floppy_speed",
@@ -688,7 +688,7 @@ static void retro_set_core_options()
             { "0", "Turbo" },
             { NULL, NULL },
          },
-         "100"
+         "0"
       },
       {
          "puae_floppy_multidrive",
@@ -730,7 +730,7 @@ static void retro_set_core_options()
             { "0", "Turbo" },
             { NULL, NULL },
          },
-         "100"
+         "0"
       },
       {
          "puae_cd_startup_delayed_insert",
@@ -823,7 +823,7 @@ static void retro_set_core_options()
             { "enabled", NULL },
             { NULL, NULL },
          },
-         "disabled"
+         "enabled"
       },
       {
          "puae_video_allow_hz_change",
@@ -853,7 +853,7 @@ static void retro_set_core_options()
             { "NTSC", NULL },
             { NULL, NULL },
          },
-         "PAL auto"
+         "PAL"
       },
       {
          "puae_video_resolution",
@@ -869,7 +869,7 @@ static void retro_set_core_options()
             { "superhires", "Super-High 1440px" },
             { NULL, NULL },
          },
-         "auto"
+         "hires"
       },
       {
          "puae_video_vresolution",
@@ -884,7 +884,7 @@ static void retro_set_core_options()
             { "double", "Double Line" },
             { NULL, NULL },
          },
-         "auto"
+         "single"
       },
       {
          "puae_video_aspect",
@@ -899,7 +899,7 @@ static void retro_set_core_options()
             { "NTSC", NULL },
             { NULL, NULL },
          },
-         "auto"
+         "PAL"
       },
       {
          "puae_zoom_mode",
@@ -998,7 +998,7 @@ static void retro_set_core_options()
             { "-2", NULL },
             { NULL, NULL },
          },
-         "auto"
+         "0"
       },
       {
          "puae_horizontal_pos",
@@ -1052,7 +1052,7 @@ static void retro_set_core_options()
             { "-2", NULL },
             { NULL, NULL },
          },
-         "auto"
+         "0"
       },
       {
          "puae_gfx_flickerfixer",
@@ -1132,7 +1132,7 @@ static void retro_set_core_options()
             { "top_basic_minimal", "Top Basic Minimal" },
             { NULL, NULL },
          },
-         "bottom"
+         "bottom_basic_minimal"
       },
       {
          "puae_vkbd_theme",
@@ -1154,7 +1154,7 @@ static void retro_set_core_options()
             { "dark_outline", "Dark (outline)" },
             { NULL, NULL },
          },
-         "auto"
+         "cd32_outline"
       },
       {
          "puae_vkbd_transparency",
@@ -1222,7 +1222,7 @@ static void retro_set_core_options()
             { "enabled", NULL },
             { NULL, NULL },
          },
-         "disabled"
+         "enabled"
       },
       {
          "puae_sound_stereo_separation",
@@ -1262,7 +1262,7 @@ static void retro_set_core_options()
             { "crux", "Crux" },
             { NULL, NULL },
          },
-         "anti"
+         "none"
       },
       {
          "puae_sound_filter",
@@ -1277,7 +1277,7 @@ static void retro_set_core_options()
             { "on", "On" },
             { NULL, NULL },
          },
-         "emulated"
+         "off"
       },
       {
          "puae_sound_filter_type",
@@ -1358,7 +1358,7 @@ static void retro_set_core_options()
             { "0", "100%" },
             { NULL, NULL },
          },
-         "80"
+         "100"
       },
       {
          "puae_floppy_sound_empty_mute",
@@ -1372,7 +1372,7 @@ static void retro_set_core_options()
             { "enabled", NULL },
             { NULL, NULL },
          },
-         "disabled"
+         "enabled"
       },
       {
          "puae_floppy_sound_type",
@@ -1594,7 +1594,7 @@ static void retro_set_core_options()
          NULL,
          "hotkey",
          {{ NULL, NULL }},
-         "RETROK_F12"
+         "---"
       },
       {
          "puae_mapper_mouse_toggle",
@@ -1604,7 +1604,7 @@ static void retro_set_core_options()
          NULL,
          "hotkey",
          {{ NULL, NULL }},
-         "RETROK_RCTRL"
+         "---"
       },
       {
          "puae_mapper_turbo_fire_toggle",
@@ -1725,7 +1725,7 @@ static void retro_set_core_options()
          NULL,
          "retropad",
          {{ NULL, NULL }},
-         "RETROK_SPACE"
+         "---"
       },
       {
          "puae_mapper_y",
@@ -1745,7 +1745,7 @@ static void retro_set_core_options()
          NULL,
          "retropad",
          {{ NULL, NULL }},
-         "TOGGLE_VKBD"
+         "---"
       },
       {
          "puae_mapper_start",
@@ -1785,7 +1785,7 @@ static void retro_set_core_options()
          NULL,
          "retropad",
          {{ NULL, NULL }},
-         "MOUSE_LEFT_BUTTON"
+         "---"
       },
       {
          "puae_mapper_r2",
@@ -1795,7 +1795,7 @@ static void retro_set_core_options()
          NULL,
          "retropad",
          {{ NULL, NULL }},
-         "MOUSE_RIGHT_BUTTON"
+         "---"
       },
       {
          "puae_mapper_l3",
@@ -1931,7 +1931,7 @@ static void retro_set_core_options()
             { "R2", "RetroPad R2" },
             { NULL, NULL },
          },
-         "B"
+         "L2"
       },
       {
          "puae_turbo_pulse",
@@ -4902,16 +4902,16 @@ static char* emu_config_string(char *mode, int config)
    {
       switch (config)
       {
-         case EMU_CONFIG_A500CHIPONLY:      return "A500CHIPONLY";
-         case EMU_CONFIG_A500CHIP&SLOW:    return "A500CHIP&SLOW";
-         case EMU_CONFIG_A500PLUSCHIPONLY:  return "A500PLUSCHIPONLY";
-         case EMU_CONFIG_A500PLUSCHIP&SLOW:      return "A500PLUSCHIP&SLOW";
-         case EMU_CONFIG_A1200:     return "A1200";
-         case EMU_CONFIG_A1200OG:   return "A1200OG";
-         case EMU_CONFIG_A2000:     return "A2000";
-         case EMU_CONFIG_A2000OG:   return "A2000OG";
-         case EMU_CONFIG_A4030:     return "A4030";
-         case EMU_CONFIG_A4040:     return "A4040";
+         case EMU_CONFIG_A500:      return "A500 Chip Only";
+         case EMU_CONFIG_A500OG:    return "A500 Chip & Slow";
+         case EMU_CONFIG_A500PLUS:  return "A500PLUS Chip & Slow";
+         case EMU_CONFIG_A600:      return "A500PLUS Chip Only";
+         case EMU_CONFIG_A1200:     return "A600 Chip & Fast";
+         case EMU_CONFIG_A1200OG:   return "A600 Chip Only";
+         case EMU_CONFIG_A2000:     return "A1200 Chip & Fast";
+         case EMU_CONFIG_A2000OG:   return "A1200 Chip Only";
+         case EMU_CONFIG_A4030:     return "A1200 030 Chip & Fast";
+         case EMU_CONFIG_A4040:     return "A1200 030 FPU Chip & Fast";
          case EMU_CONFIG_CDTV:      return "CDTV";
          case EMU_CONFIG_CD32:      return "CD32";
          case EMU_CONFIG_CD32FR:    return "CD32FR";
@@ -4921,16 +4921,16 @@ static char* emu_config_string(char *mode, int config)
    {
       switch (config)
       {
-         case EMU_CONFIG_A500CHIPONLY:      return uae_kickstarts[A500_KS13_ROM].normal;
-         case EMU_CONFIG_A500CHIP&SLOW:    return uae_kickstarts[A500_KS12_ROM].normal;
-         case EMU_CONFIG_A500PLUSCHIPONLY:  return uae_kickstarts[A500_KS204_ROM].normal;
-         case EMU_CONFIG_A500PLUSCHIP&SLOW:      return uae_kickstarts[A600_KS31_ROM].normal;
-         case EMU_CONFIG_A1200:     return uae_kickstarts[A1200_KS31_ROM].normal;
-         case EMU_CONFIG_A1200OG:   return uae_kickstarts[A1200_KS31_ROM].normal;
-         case EMU_CONFIG_A2000:     return uae_kickstarts[A600_KS31_ROM].normal;
-         case EMU_CONFIG_A2000OG:   return uae_kickstarts[A500_KS12_ROM].normal;
-         case EMU_CONFIG_A4030:     return uae_kickstarts[A4000_KS31_ROM].normal;
-         case EMU_CONFIG_A4040:     return uae_kickstarts[A4000_KS31_ROM].normal;
+         case EMU_CONFIG_A500:      return uae_kickstarts[A500_KS13_ROM].normal;
+         case EMU_CONFIG_A500OG:    return uae_kickstarts[A500_KS12_ROM].normal;
+         case EMU_CONFIG_A500PLUS:  return uae_kickstarts[A500_KS204_ROM].normal;
+         case EMU_CONFIG_A600:      return uae_kickstarts[A500_KS204_ROM].normal;
+         case EMU_CONFIG_A1200:     return uae_kickstarts[A600_KS205_ROM].normal;
+         case EMU_CONFIG_A1200OG:   return uae_kickstarts[A600_KS205_ROM].normal;
+         case EMU_CONFIG_A2000:     return uae_kickstarts[A1200_KS31_ROM].normal;
+         case EMU_CONFIG_A2000OG:   return uae_kickstarts[A1200_KS31_ROM].normal;
+         case EMU_CONFIG_A4030:     return uae_kickstarts[A1200_KS31_ROM].normal;
+         case EMU_CONFIG_A4040:     return uae_kickstarts[A1200_KS31_ROM].normal;
          case EMU_CONFIG_CDTV:      return uae_kickstarts[A500_KS13_ROM].normal;
          case EMU_CONFIG_CD32:      return uae_kickstarts[CD32_ROM].normal;
          case EMU_CONFIG_CD32FR:    return uae_kickstarts[CD32_ROM].normal;
@@ -4951,10 +4951,10 @@ static char* emu_config_string(char *mode, int config)
 
 static int emu_config_int(char *model)
 {
-   if      (!strcmp(model, "A500CHIPONLY"))      return EMU_CONFIG_A500CHIPONLY;
-   else if (!strcmp(model, "A500CHIP&SLOW"))    return EMU_CONFIG_A500CHIP&SLOW;
-   else if (!strcmp(model, "A500PLUSCHIPONLY"))  return EMU_CONFIG_A500PLUSCHIPONLY;
-   else if (!strcmp(model, "A500PLUSCHIP&SLOW"))      return EMU_CONFIG_A500PLUSCHIP&SLOW;
+   if      (!strcmp(model, "A500"))      return EMU_CONFIG_A500;
+   else if (!strcmp(model, "A500OG"))    return EMU_CONFIG_A500OG;
+   else if (!strcmp(model, "A500PLUS"))  return EMU_CONFIG_A500PLUS;
+   else if (!strcmp(model, "A600"))      return EMU_CONFIG_A600;
    else if (!strcmp(model, "A1200"))     return EMU_CONFIG_A1200;
    else if (!strcmp(model, "A1200OG"))   return EMU_CONFIG_A1200OG;
    else if (!strcmp(model, "A2000"))     return EMU_CONFIG_A2000;
@@ -4997,15 +4997,7 @@ static char* emu_config(int config)
     */
    switch (config)
    {
-      case EMU_CONFIG_A500CHIPONLY: return
-         "cpu_model=68000\n"
-         "chipset=ocs\n"
-         "chipset_compatible=A500\n"
-         "chipmem_size=1\n"
-         "bogomem_size=0\n"
-         "fastmem_size=0\n";
-
-      case EMU_CONFIG_A500CHIP&SLOW: return
+      case EMU_CONFIG_A500: return
          "cpu_model=68000\n"
          "chipset=ocs\n"
          "chipset_compatible=A500\n"
@@ -5013,15 +5005,15 @@ static char* emu_config(int config)
          "bogomem_size=7\n"
          "fastmem_size=0\n";
 
-      case EMU_CONFIG_A500PLUSCHIPONLY: return
+      case EMU_CONFIG_A500OG: return
          "cpu_model=68000\n"
-         "chipset=ecs\n"
-         "chipset_compatible=A500+\n"
-         "chipmem_size=2\n"
+         "chipset=ocs\n"
+         "chipset_compatible=A500\n"
+         "chipmem_size=1\n"
          "bogomem_size=0\n"
          "fastmem_size=0\n";
 
-      case EMU_CONFIG_A500PLUSCHIPANDSLOW: return
+      case EMU_CONFIG_A500PLUS: return
          "cpu_model=68000\n"
          "chipset=ecs\n"
          "chipset_compatible=A500+\n"
@@ -5029,7 +5021,39 @@ static char* emu_config(int config)
          "bogomem_size=4\n"
          "fastmem_size=0\n";
 
+      case EMU_CONFIG_A600: return
+         "cpu_model=68000\n"
+         "chipset=ecs\n"
+         "chipset_compatible=A500+\n"
+         "chipmem_size=2\n"
+         "bogomem_size=0\n"
+         "fastmem_size=0\n";
+
       case EMU_CONFIG_A1200: return
+         "cpu_model=68000\n"
+         "chipset=ecs\n"
+         "chipset_compatible=A600\n"
+         "chipmem_size=4\n"
+         "bogomem_size=0\n"
+         "fastmem_size=0\n";
+
+      case EMU_CONFIG_A1200OG: return
+         "cpu_model=68000\n"
+         "chipset=ecs\n"
+         "chipset_compatible=A600\n"
+         "chipmem_size=4\n"
+         "bogomem_size=0\n"
+         "fastmem_size=8\n";
+
+      case EMU_CONFIG_A2000: return
+         "cpu_model=68020\n"
+         "chipset=aga\n"
+         "chipset_compatible=A1200\n"
+         "chipmem_size=4\n"
+         "bogomem_size=0\n"
+         "fastmem_size=0\n";
+
+      case EMU_CONFIG_A2000OG: return
          "cpu_model=68020\n"
          "chipset=aga\n"
          "chipset_compatible=A1200\n"
@@ -5037,44 +5061,19 @@ static char* emu_config(int config)
          "bogomem_size=0\n"
          "fastmem_size=8\n";
 
-      case EMU_CONFIG_A1200OG: return
-         "cpu_model=68020\n"
-         "chipset=aga\n"
-         "chipset_compatible=A1200\n"
-         "chipmem_size=4\n"
-         "bogomem_size=0\n"
-         "fastmem_size=0\n";
-
-      case EMU_CONFIG_A2000: return
-         "cpu_model=68000\n"
-         "chipset=ecs\n"
-         "chipset_compatible=A2000\n"
-         "chipmem_size=2\n"
-         "bogomem_size=0\n"
-         "fastmem_size=0\n";
-
-      case EMU_CONFIG_A2000OG: return
-         "cpu_model=68000\n"
-         "chipset=ocs\n"
-         "chipset_compatible=A2000\n"
-         "chipmem_size=1\n"
-         "bogomem_size=2\n"
-         "fastmem_size=0\n";
-
       case EMU_CONFIG_A4030: return
          "cpu_model=68030\n"
-         "fpu_model=68882\n"
          "chipset=aga\n"
-         "chipset_compatible=A4000\n"
+         "chipset_compatible=A1200\n"
          "chipmem_size=4\n"
          "bogomem_size=0\n"
          "fastmem_size=8\n";
 
       case EMU_CONFIG_A4040: return
-         "cpu_model=68040\n"
-         "fpu_model=68040\n"
+         "cpu_model=68030\n"
+         "fpu_model=68882\n"
          "chipset=aga\n"
-         "chipset_compatible=A4000\n"
+         "chipset_compatible=A1200\n"
          "chipmem_size=4\n"
          "bogomem_size=0\n"
          "fastmem_size=8\n";
@@ -5288,25 +5287,25 @@ static bool retro_create_config(void)
                log_cb(RETRO_LOG_INFO, "Found '(A1200)', 'AGA', 'CD32', or 'AmigaCD' in: '%s'\n", full_path);
                retro_config_preset("A1200");
             }
-            else if (strstr(full_path, "(A500PLUSCHIP&SLOW)") || strstr(full_path, "ECS"))
+            else if (strstr(full_path, "(A600)") || strstr(full_path, "ECS"))
             {
-               log_cb(RETRO_LOG_INFO, "Found '(A500PLUSCHIP&SLOW)' or 'ECS' in: '%s'\n", full_path);
-               retro_config_preset("A500PLUSCHIP&SLOW");
+               log_cb(RETRO_LOG_INFO, "Found '(A600)' or 'ECS' in: '%s'\n", full_path);
+               retro_config_preset("A600");
             }
-            else if (strstr(full_path, "(A500+)") || strstr(full_path, "(A500PLUSCHIPONLY)"))
+            else if (strstr(full_path, "(A500+)") || strstr(full_path, "(A500PLUS)"))
             {
-               log_cb(RETRO_LOG_INFO, "Found '(A500+)' or '(A500PLUSCHIPONLY)' in: '%s'\n", full_path);
-               retro_config_preset("A500PLUSCHIPONLY");
+               log_cb(RETRO_LOG_INFO, "Found '(A500+)' or '(A500PLUS)' in: '%s'\n", full_path);
+               retro_config_preset("A500PLUS");
             }
-            else if (strstr(full_path, "(A500CHIP&SLOW)") || strstr(full_path, "(512K)"))
+            else if (strstr(full_path, "(A500OG)") || strstr(full_path, "(512K)"))
             {
-               log_cb(RETRO_LOG_INFO, "Found '(A500CHIP&SLOW)' or '(512K)' in: '%s'\n", full_path);
-               retro_config_preset("A500CHIP&SLOW");
+               log_cb(RETRO_LOG_INFO, "Found '(A500OG)' or '(512K)' in: '%s'\n", full_path);
+               retro_config_preset("A500OG");
             }
-            else if (strstr(full_path, "(A500CHIPONLY)") || strstr(full_path, "OCS"))
+            else if (strstr(full_path, "(A500)") || strstr(full_path, "OCS"))
             {
-               log_cb(RETRO_LOG_INFO, "Found '(A500CHIPONLY)' or 'OCS' in: '%s'\n", full_path);
-               retro_config_preset("A500CHIPONLY");
+               log_cb(RETRO_LOG_INFO, "Found '(A500)' or 'OCS' in: '%s'\n", full_path);
+               retro_config_preset("A500");
             }
             else
             {
