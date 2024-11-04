@@ -480,22 +480,22 @@ static void retro_set_core_options()
          NULL,
          {
             { "auto", "Automatic" },
-            { "A500OG", "A500 (OCS 0.5MB Chip)" },
-            { "A500", "A500 (OCS 0.5MB Chip 1.7MB Slow)" },
-            { "A500PLUS", "A500+ (ECS 1MB Chip 1MB Slow)" },
-            { "A600", "A500+ (ECS 1MB)" },
-            { "A1200OG", "A600 (ECS 2MB Chip 8MB Fast)" },
-            { "A1200", "A600 (ECS 2MB Chip)" },
-            { "A2000OG", "A1200 (AGA 2MB Chip 8MB Fast)" },
-            { "A2000", "A1200 (AGA 2MB Chip)" },
-            { "A4030", "A1200/030 (AGA 2MB Chip 8MB Fast)" },
-            { "A4040", "A1200/030 (AGA FPU 2MB Chip 8MB Fast)" },
+            { "A500 Chip Only", "A500 (OCS 0.5MB Chip)" },
+            { "A500 Chip & Slow", "A500 (OCS 0.5MB Chip 1.8MB Slow)" },
+            { "A500PLUS Chip Only", "A500+ (ECS 1MB)" },
+            { "A500PLUS Chip & Slow", "A500+ (ECS 1MB Chip 1MB Slow)" },
+            { "A600 Chip Only", "A600 (ECS 2MB Chip)" },
+            { "A600 Chip & Fast", "A600 (ECS 2MB Chip 8MB Fast)" },
+            { "A1200/020 Chip Only", "A1200/020 (AGA 2MB Chip)" },
+            { "A1200/020 Chip & Fast", "A1200/020 (AGA 2MB Chip 8MB Fast)" },
+            { "A1200/030", "A1200/030 (AGA 2MB Chip 8MB Fast)" },
+            { "A1200/030 FPU", "A1200/030 (AGA FPU 2MB Chip 8MB Fast)" },
             { "CDTV", "CDTV (1M Chip)" },
             { "CD32", "CD32 (2M Chip)" },
             { "CD32FR", "CD32 (2M Chip + 8M Fast)" },
             { NULL, NULL },
          },
-         "A2000OG"
+         "A1200/020 Chip & Fast"
       },
       {
          "puae_model_options_display",
@@ -519,19 +519,19 @@ static void retro_set_core_options()
          NULL,
          "model",
          {
-            { "A500OG", "A500 (OCS 0.5MB Chip 1.7MB Fast)" },
-            { "A500", "A500 (OCS 0.5MB Chip)" },
-            { "A500PLUS", "A500+ (ECS 1MB Chip 1MB Slow)" },
-            { "A600", "A500+ (ECS 1MB Chip)" },
-            { "A1200OG", "A600 (ECS 2MB Chip 8MB Fast)" },
-            { "A1200", "A600 (ECS 2MB Chip)" },
-            { "A2000OG", "A1200 (AGA 2MB Chip)" },
-            { "A2000", "A1200 (AGA 2MB Chip 8MB Fast)" },
-            { "A4030", "A1200/030 (AGA FPU 2MB Chip 8MB Fast)" },
-            { "A4040", "A1200/030 (AGA 2MB Chip 8MB Fast)" },
+            { "A500 Chip Only", "A500 (OCS 0.5MB)" },
+            { "A500 Chip & Slow", "A500 (OCS 0.5MB Chip 1.8MB Slow)" },
+            { "A500PLUS Chip Only", "A500+ (ECS 1MB Chip)" },
+            { "A500PLUS Chip & Fast", "A500+ (ECS 1MB Chip 1MB Slow)" },
+            { "A600 Chip Only", "A600 (ECS 2MB Chip)" },
+            { "A600 Chip & Fast", "A600 (ECS 2MB Chip 8MB Fast)" },
+            { "A1200/020 Chip Only", "A1200/020 (AGA 2MB Chip)" },
+            { "A1200/020 Chip & Fast", "A1200 (AGA 2MB Chip 8MB Fast)" },
+            { "A1200/030", "A1200/030 (AGA 2MB Chip 8MB Fast)" },
+            { "A1200/030 FPU", "A1200/030 (AGA FPU 2MB Chip 8MB Fast)" },
             { NULL, NULL },
          },
-         "A500"
+         "A500 Chip Only"
       },
       {
          "puae_model_hd",
@@ -541,15 +541,14 @@ static void retro_set_core_options()
          NULL,
          "model",
          {
-            { "A600", "A500+ (ECS 1MB Chip)" },
-            { "A1200OG", "A600 (ECS 2MB Chip)" },
-            { "A1200", "A600 (ECS 2MB Chip 8MB Fast)" },
-            { "A2000", "A1200 (AGA 2MB Chip 8MB Fast)" },
-            { "A4030", "A1200/030 (AGA FPU 2MB Chip 8MB Fast)" },
-            { "A4040", "A1200/030 (AGA 2MB Chip 8MB Fast)" },
+            { "A500PLUS Chip & Slow", "A500+ (ECS 1MB Chip 1MB Slow)" },
+            { "A600 Chip & Fast", "A600 (ECS 2MB Chip 8MB Fast)" },
+            { "A1200/020 Chip & Fast", "A1200/020 (AGA 2MB Chip 8MB Fast)" },
+            { "A1200/030", "A1200/030 (AGA 2MB Chip 8MB Fast)" },
+            { "A1200/030 FPU", "A1200/030 (AGA FPU 2MB Chip 8MB Fast)" },
             { NULL, NULL },
          },
-         "A1200"
+         "A1200/020 Chip & Fast"
       },
       {
          "puae_model_cd",
@@ -4291,7 +4290,7 @@ void retro_get_system_info(struct retro_system_info *info)
 #define GIT_VERSION ""
 #endif
    memset(info, 0, sizeof(*info));
-   info->library_name     = "P-UAE Xtreme Amped";
+   info->library_name     = "PUAE";
    info->library_version  = "2.6.1" GIT_VERSION;
    info->need_fullpath    = true;
    info->block_extract    = true;
@@ -4902,16 +4901,16 @@ static char* emu_config_string(char *mode, int config)
    {
       switch (config)
       {
-         case EMU_CONFIG_A500:      return "A500 Chip Only";
-         case EMU_CONFIG_A500OG:    return "A500 Chip & Slow";
-         case EMU_CONFIG_A500PLUS:  return "A500PLUS Chip & Slow";
+         case EMU_CONFIG_A500:      return "A500 Chip & Slow";
+         case EMU_CONFIG_A500OG:    return "A500 Chip Only";
          case EMU_CONFIG_A600:      return "A500PLUS Chip Only";
-         case EMU_CONFIG_A1200:     return "A600 Chip & Fast";
-         case EMU_CONFIG_A1200OG:   return "A600 Chip Only";
-         case EMU_CONFIG_A2000:     return "A1200 Chip & Fast";
-         case EMU_CONFIG_A2000OG:   return "A1200 Chip Only";
-         case EMU_CONFIG_A4030:     return "A1200 030 Chip & Fast";
-         case EMU_CONFIG_A4040:     return "A1200 030 FPU Chip & Fast";
+         case EMU_CONFIG_A500PLUS:  return "A500PLUS Chip & Slow";
+         case EMU_CONFIG_A1200:     return "A600 Chip Only";
+         case EMU_CONFIG_A1200OG:   return "A600 Chip & Fast";
+         case EMU_CONFIG_A2000:     return "A1200/020 AGA 2MB Chip";
+         case EMU_CONFIG_A2000OG:   return "A1200/020 AGA 2MB Chip 8MB Fast";
+         case EMU_CONFIG_A4030:     return "A1200/030 AGA 2MB Chip 8MB Fast";
+         case EMU_CONFIG_A4040:     return "A1200/030 AGA FPU 2MB Chip 8MB Fast";
          case EMU_CONFIG_CDTV:      return "CDTV";
          case EMU_CONFIG_CD32:      return "CD32";
          case EMU_CONFIG_CD32FR:    return "CD32FR";
@@ -4951,16 +4950,16 @@ static char* emu_config_string(char *mode, int config)
 
 static int emu_config_int(char *model)
 {
-   if      (!strcmp(model, "A500"))      return EMU_CONFIG_A500;
-   else if (!strcmp(model, "A500OG"))    return EMU_CONFIG_A500OG;
-   else if (!strcmp(model, "A500PLUS"))  return EMU_CONFIG_A500PLUS;
-   else if (!strcmp(model, "A600"))      return EMU_CONFIG_A600;
-   else if (!strcmp(model, "A1200"))     return EMU_CONFIG_A1200;
-   else if (!strcmp(model, "A1200OG"))   return EMU_CONFIG_A1200OG;
-   else if (!strcmp(model, "A2000"))     return EMU_CONFIG_A2000;
-   else if (!strcmp(model, "A2000OG"))   return EMU_CONFIG_A2000OG;
-   else if (!strcmp(model, "A4030"))     return EMU_CONFIG_A4030;
-   else if (!strcmp(model, "A4040"))     return EMU_CONFIG_A4040;
+   if      (!strcmp(model, "A500 Chip & Slow"))      return EMU_CONFIG_A500;
+   else if (!strcmp(model, "A500 Chip Only"))    return EMU_CONFIG_A500OG;
+   else if (!strcmp(model, "A500PLUS Chip & Slow"))  return EMU_CONFIG_A500PLUS;
+   else if (!strcmp(model, "A500PLUS Chip Only "))      return EMU_CONFIG_A600;
+   else if (!strcmp(model, "A600 Chip Only"))     return EMU_CONFIG_A1200;
+   else if (!strcmp(model, "A600 Chip & Fast"))   return EMU_CONFIG_A1200OG;
+   else if (!strcmp(model, "A1200/020 Chip Only"))     return EMU_CONFIG_A2000;
+   else if (!strcmp(model, "A1200/020 Chip & Fast"))   return EMU_CONFIG_A2000OG;
+   else if (!strcmp(model, "A1200/030"))     return EMU_CONFIG_A4030;
+   else if (!strcmp(model, "A1200/030 FPU"))     return EMU_CONFIG_A4040;
    else if (!strcmp(model, "CDTV"))      return EMU_CONFIG_CDTV;
    else if (!strcmp(model, "CD32"))      return EMU_CONFIG_CD32;
    else if (!strcmp(model, "CD32FR"))    return EMU_CONFIG_CD32FR;
