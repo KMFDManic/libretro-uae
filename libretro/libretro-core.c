@@ -2815,7 +2815,7 @@ static void update_variables(void)
       }
    }
 
-  var.key = "puae_z3mem_size";
+   var.key = "puae_z3mem_size";
    var.value = NULL;
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
@@ -2823,7 +2823,9 @@ static void update_variables(void)
       if (!strstr(var.value, "auto"))
       {
          opt_z3mem_size = atoi(var.value);
+
          strcat(uae_config, "cpu_24bit_addressing=false\n");
+
          strcat(uae_config, "z3mem_size=");
          strcat(uae_config, var.value);
          strcat(uae_config, "\n");
