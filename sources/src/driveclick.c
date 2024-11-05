@@ -23,7 +23,7 @@
 #ifdef __LIBRETRO__
 #include "libretro-core.h"
 #include "file/file_path.h"
-extern char retro_system_directory[];
+extern char retro_system_data_directory[];
 extern bool opt_floppy_sound_empty_mute;
 #endif
 
@@ -203,9 +203,7 @@ void driveclick_init (void)
 				for (int j = 0; j < CLICK_TRACKS; j++)
 					drvs[i][DS_CLICK].lengths[j] = drvs[i][DS_CLICK].len;
 #ifdef __LIBRETRO__
-				_stprintf (path2, "%s%cuae_data%c", retro_system_directory, FSDB_DIR_SEPARATOR, FSDB_DIR_SEPARATOR);
-				if (!path_is_directory(path2))
-				   _stprintf (path2, "%s%cuae%c", retro_system_directory, FSDB_DIR_SEPARATOR, FSDB_DIR_SEPARATOR);
+				_stprintf (path2, "%s%c", retro_system_data_directory, FSDB_DIR_SEPARATOR);
 #else
 				get_plugin_path (path2, sizeof path2 / sizeof (TCHAR), _T("floppysounds"));
 				_stprintf (path2, "%suae_data%c", "./", FSDB_DIR_SEPARATOR);
@@ -325,8 +323,9 @@ static uae_s16 getsample (void)
 				int vol;
 				vol = currprefs.dfxclickvolume;
 #ifdef __LIBRETRO__
-				if (!drv_has_disk[i] && opt_floppy_sound_empty_mute)
-					vol = 100;
+				/* Make empty drive either mute or less loud */
+				if (!drv_has_disk[i])
+					vol = (opt_floppy_sound_empty_mute) ? 100 : 100 - ((100 - currprefs.dfxclickvolume) / 4);
 #endif
 				total_sample += (smp * (100 - vol) / 100) / div;
 				total_div++;
