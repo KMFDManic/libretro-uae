@@ -2925,6 +2925,7 @@ static void update_variables(void)
       if (!strstr(var.value, "auto"))
       {
          opt_chipmem_size = atoi(var.value);
+
          strcat(uae_config, "chipmem_size=");
          strcat(uae_config, var.value);
          strcat(uae_config, "\n");
@@ -2982,6 +2983,7 @@ static void update_variables(void)
       if (!strstr(var.value, "auto"))
       {
          opt_cpu_model = atoi(var.value);
+
          strcat(uae_config, "cpu_model=");
          strcat(uae_config, var.value);
          strcat(uae_config, "\n");
@@ -2992,6 +2994,7 @@ static void update_variables(void)
                snprintf(valbuf, sizeof(valbuf), "%d", 68040);
             else
                snprintf(valbuf, sizeof(valbuf), "%d", opt_cpu_model);
+
             strcat(uae_config, "mmu_model=");
             strcat(uae_config, valbuf);
             strcat(uae_config, "\n");
@@ -3008,20 +3011,22 @@ static void update_variables(void)
          opt_fpu_model = atoi(var.value);
       else if (!strcmp(var.value, "cpu") && opt_cpu_model > 0)
          opt_fpu_model = opt_cpu_model;
+
       if (opt_fpu_model && opt_cpu_model > 68030)
          opt_fpu_model = opt_cpu_model;
       else if (opt_fpu_model < 0 && opt_cpu_model > 68020)
          opt_fpu_model = 68882;
+
       if (opt_fpu_model > -1)
       {
          char valbuf[8];
          snprintf(valbuf, sizeof(valbuf), "%d", opt_fpu_model);
+
          strcat(uae_config, "fpu_model=");
          strcat(uae_config, valbuf);
          strcat(uae_config, "\n");
       }
    }
-
 
    var.key = "puae_cpu_compatibility";
    var.value = NULL;
@@ -5397,6 +5402,8 @@ static char* emu_config(int config)
       case EMU_CONFIG_A4030: return
          "cpu_model=68030\n"
          "fpu_model=68882\n"
+         "mmu_model=68030\n"
+         "cpu_24bit_addressing=false\n"
          "chipset=aga\n"
          "chipset_compatible=A4000\n"
          "chipmem_size=4\n"
@@ -5406,6 +5413,7 @@ static char* emu_config(int config)
       case EMU_CONFIG_A4040: return
          "cpu_model=68040\n"
          "fpu_model=68040\n"
+         "mmu_model=68040\n"
          "chipset=aga\n"
          "chipset_compatible=A4000\n"
          "chipmem_size=4\n"
