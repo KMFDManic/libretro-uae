@@ -2995,7 +2995,6 @@ static void update_variables(void)
             else
                snprintf(valbuf, sizeof(valbuf), "%d", opt_cpu_model);
 
-            strcat(uae_config, "mmu_model=");
             strcat(uae_config, valbuf);
             strcat(uae_config, "\n");
             strcat(uae_config, "cpu_24bit_addressing=false\n");
@@ -3007,14 +3006,14 @@ static void update_variables(void)
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
    {
       opt_fpu_model = -1;
-      if (!strstr(var.value, "auto"))
-         opt_fpu_model = atoi(var.value);
-      else if (!strcmp(var.value, "cpu") && opt_cpu_model > 0)
+      if (!strcmp(var.value, "cpu") && opt_cpu_model > 0)
          opt_fpu_model = opt_cpu_model;
+      else if (!strstr(var.value, "auto"))
+         opt_fpu_model = atoi(var.value);
 
       if (opt_fpu_model && opt_cpu_model > 68030)
          opt_fpu_model = opt_cpu_model;
-      else if (opt_fpu_model < 0 && opt_cpu_model > 68020)
+      else if ((opt_fpu_model != 0 && opt_fpu_model != 68881) && opt_cpu_model > 68020)
          opt_fpu_model = 68882;
 
       if (opt_fpu_model > -1)
@@ -5401,8 +5400,6 @@ static char* emu_config(int config)
 
       case EMU_CONFIG_A4030: return
          "cpu_model=68030\n"
-         "fpu_model=68882\n"
-         "mmu_model=68030\n"
          "cpu_24bit_addressing=false\n"
          "chipset=aga\n"
          "chipset_compatible=A4000\n"
@@ -5412,8 +5409,7 @@ static char* emu_config(int config)
 
       case EMU_CONFIG_A4040: return
          "cpu_model=68040\n"
-         "fpu_model=68040\n"
-         "mmu_model=68040\n"
+         "cpu_24bit_addressing=false\n"
          "chipset=aga\n"
          "chipset_compatible=A4000\n"
          "chipmem_size=4\n"
