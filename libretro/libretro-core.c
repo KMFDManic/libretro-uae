@@ -1320,7 +1320,7 @@ static void retro_set_core_options()
             { "2", NULL },
             { NULL, NULL },
          },
-         "disabled"
+         "1"
       },
       {
          "puae_statusbar",
@@ -1792,7 +1792,7 @@ static void retro_set_core_options()
          NULL,
          "hotkey",
          {{ NULL, NULL }},
-         "---"
+         "RETROK_F11"
       },
       {
          "puae_mapper_statusbar",
@@ -1862,7 +1862,7 @@ static void retro_set_core_options()
          NULL,
          "hotkey",
          {{ NULL, NULL }},
-         "---"
+         "RETROK_F9"
       },
       /* Button mappings */
       {
@@ -1953,7 +1953,7 @@ static void retro_set_core_options()
          NULL,
          "retropad",
          {{ NULL, NULL }},
-         "TOGGLE_VKBD"
+         "RETROK_RCTRL"
       },
       {
          "puae_mapper_start",
@@ -1963,7 +1963,7 @@ static void retro_set_core_options()
          NULL,
          "retropad",
          {{ NULL, NULL }},
-         "---"
+         "RETROK_F9"
       },
       {
          "puae_mapper_l",
@@ -1973,7 +1973,7 @@ static void retro_set_core_options()
          NULL,
          "retropad",
          {{ NULL, NULL }},
-         ""
+         "RETROK_F11"
       },
       {
          "puae_mapper_r",
@@ -1983,7 +1983,7 @@ static void retro_set_core_options()
          NULL,
          "retropad",
          {{ NULL, NULL }},
-         ""
+         "RETROK_F12"
       },
       {
          "puae_mapper_l2",
